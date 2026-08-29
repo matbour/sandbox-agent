@@ -27,11 +27,29 @@ func main() {
 	try := flag.String("try", "", "run -task on this local Git repository in a sandbox; no Linear, no push")
 	task := flag.String("task", "", "task text for -try")
 	model := flag.String("model", "", "model for -try (default AGENT_MODEL)")
+	status := flag.Bool("status", false, "show the service, running sandboxes and recent jobs")
+	show := flag.String("show", "", "show the latest job for an issue (e.g. ENG-750)")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if *status || *show != "" {
+		cfg, err := config.LoadPartial(*cfgPath)
+		if err != nil {
+			fail(log, "config", err)
+		}
+		if *show != "" {
+			err = printJob(os.Stdout, cfg.StateDir, *show)
+		} else {
+			err = printStatus(os.Stdout, cfg.StateDir, 20)
+		}
+		if err != nil {
+			fail(log, "status", err)
+		}
+		return
+	}
 
 	if *try != "" {
 		cfg, err := config.LoadPartial(*cfgPath)

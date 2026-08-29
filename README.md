@@ -49,6 +49,16 @@ Sandboxes microVM, and opens a draft pull request. Setup:
 4. `bin/agentd -once` runs what is labelled now; without `-once` it keeps polling. A systemd user
    unit is in `deploy/systemd/`.
 
+Follow the jobs:
+
+```bash
+bin/agentd -status          # service, running sandboxes, recent jobs with stage, time, cost, PR
+bin/agentd -show ENG-123    # one job: stage, PR, error or the agent's last message, files
+watch -n 5 bin/agentd -status
+```
+
+Each job writes `status.json` in its directory under `~/.local/state/sandbox-agent/jobs/`.
+
 Try the sandbox part on a local repository, without Linear or GitHub:
 
 ```bash

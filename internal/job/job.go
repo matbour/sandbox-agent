@@ -87,6 +87,16 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	start := time.Now()
 	out, err := r.Run(ctx, is, model)
 	took := time.Since(start).Round(time.Second)
+	if out != nil {
+		update(out.Dir, func(st *State) {
+			st.CostUSD, st.Turns = out.CostUSD, out.Turns
+			if err != nil {
+				st.Stage, st.Error = StageFailed, truncate(err.Error(), 2000)
+			} else {
+				st.Stage, st.PR = StageDone, out.PR.HTMLURL
+			}
+		})
+	}
 	if err != nil {
 		log.Error("job failed", "err", err, "took", took)
 		msg := fmt.Sprintf("%s: failed after %s.\n\n```\n%s\n```", Marker, took, truncate(err.Error(), 3000))
@@ -124,6 +134,10 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 		return nil, err
 	}
 	out := &Outcome{Dir: dir}
+	update(dir, func(st *State) {
+		st.Issue, st.Title, st.URL, st.Model = is.Identifier, is.Title, is.URL, model
+		st.Stage, st.PID, st.Started = StageCloning, os.Getpid(), time.Now().UTC()
+	})
 
 	owner, name, _ := strings.Cut(cfg.Repo, "/")
 	tok, err := r.App.InstallationToken(ctx, name)
@@ -156,6 +170,7 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 
 	// Commit, push a new branch, open a draft PR.
+	setStage(dir, StagePublishing)
 	title, body := ParseSummary(ex.agent.Result, is.Title)
 	msg := fmt.Sprintf("%s: %s\n\n%s\n", is.Identifier, title, is.URL)
 	if cfg.AuthorEmail != "" {
@@ -212,6 +227,7 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	is.Comments.Nodes = comments
 
 	// Sandbox.
+	setStage(dir, StageSetup)
 	if err := sbx.EnsureDaemon(ctx, cfg.CPUs); err != nil {
 		return ex, err
 	}
@@ -221,6 +237,7 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	if err != nil {
 		return ex, err
 	}
+	update(dir, func(st *State) { st.Sandbox = sb.Name })
 	defer func() {
 		if err := sb.RemoveHard(cfg.CPUs); err != nil {
 			r.Log.Warn("sandbox cleanup", "err", err)
@@ -247,6 +264,7 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	// Agent.
+	setStage(dir, StageAgent)
 	prompt := Prompt(is, notes)
 	logf("prompt.md", []byte(prompt))
 	args := []string{"claude", "-p", prompt, "--dangerously-skip-permissions",
@@ -275,6 +293,7 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	// Stage the workspace against the clean clone and validate the change set.
+	setStage(dir, StageValidating)
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 	if _, err := g.Run(ctx, "add", "--all", "--", "."); err != nil {
 		return ex, err
@@ -354,7 +373,21 @@ func (r *Runner) Try(ctx context.Context, localRepo, task, model string) (*Execu
 	}
 	var is linear.Issue
 	is.Identifier, is.Title, is.Description = "TRY-1", firstLine(task), task
+	update(dir, func(st *State) {
+		st.Issue, st.Title, st.Model = "try", is.Title, model
+		st.Stage, st.PID, st.Started = StageSetup, os.Getpid(), time.Now().UTC()
+	})
 	ex, err := r.Execute(ctx, is, model, dir, repoDir, ws, "try", stamp)
+	update(dir, func(st *State) {
+		if ex != nil {
+			st.CostUSD, st.Turns = ex.CostUSD, ex.Turns
+		}
+		if err != nil {
+			st.Stage, st.Error = StageFailed, truncate(err.Error(), 2000)
+		} else {
+			st.Stage = StageDone
+		}
+	})
 	return ex, dir, err
 }
 
