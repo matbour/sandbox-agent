@@ -129,3 +129,12 @@ account, or relaxing the platform's author check.
 Adds to D12: `Commit statuses`, `Checks` and `Deployments`, all read-only, so the host can see
 whether CI and preview deployments of agent PRs succeed (and later feed failures back to the
 agent). Still no write access beyond `contents` and `pull_requests`, and no `workflows`.
+
+## D20. One label per model (2026-11-13)
+
+Supersedes the `agent-opus` part of D16. `agent` runs with the default model (`AGENT_MODEL`,
+Sonnet 5.5). `MODEL_LABELS` maps explicit labels to models, weakest first: `agent-haiku`,
+`agent-sonnet`, `agent-opus`, `agent-fable` (Fable 5.2). With several model labels on one issue,
+the strongest wins. A failed run suggests `RETRY_LABEL` (`agent-opus`). All four models answered
+from inside an `sbx` VM with Claude Code 2.1.322; a minimal call cost $0.002 (Haiku), $0.034
+(Sonnet), $0.070 (Opus) and $0.149 (Fable).

@@ -74,11 +74,11 @@ func main() {
 		return
 	}
 
-	log.Info("agentd started", "repo", cfg.Repo, "label", cfg.TriggerLabel, "model", cfg.AgentModel,
-		"opus_label", cfg.OpusLabel, "teams", cfg.TeamKeys,
+	log.Info("agentd started", "repo", cfg.Repo, "labels", cfg.Labels(), "default_model", cfg.AgentModel,
+		"teams", cfg.TeamKeys,
 		"every", cfg.PollInterval)
 	for {
-		issues, err := r.Linear.IssuesWithLabel(ctx, []string{cfg.TriggerLabel, cfg.OpusLabel}, cfg.TeamKeys)
+		issues, err := r.Linear.IssuesWithLabel(ctx, cfg.Labels(), cfg.TeamKeys)
 		if err != nil {
 			log.Error("poll Linear", "err", err)
 		}
@@ -113,11 +113,15 @@ func runCheck(ctx context.Context, r *job.Runner) error {
 	}
 	fmt.Printf("GitHub: %s reachable, default branch %s, token expires %s\n",
 		r.Cfg.Repo, branch, tok.ExpiresAt.Format(time.RFC3339))
-	issues, err := r.Linear.IssuesWithLabel(ctx, []string{r.Cfg.TriggerLabel, r.Cfg.OpusLabel}, r.Cfg.TeamKeys)
+	issues, err := r.Linear.IssuesWithLabel(ctx, r.Cfg.Labels(), r.Cfg.TeamKeys)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Linear: %d open issue(s) labelled %q or %q\n", len(issues), r.Cfg.TriggerLabel, r.Cfg.OpusLabel)
+	fmt.Printf("Linear: %d open issue(s) labelled %s\n", len(issues), strings.Join(r.Cfg.Labels(), ", "))
+	for _, l := range r.Cfg.ModelLabels {
+		fmt.Printf("  label %-14s -> %s\n", l.Label, l.Model)
+	}
+	fmt.Printf("  label %-14s -> %s (default)\n", r.Cfg.TriggerLabel, r.Cfg.AgentModel)
 	for _, is := range issues {
 		fmt.Printf("  %s  %s\n", is.Identifier, is.Title)
 	}

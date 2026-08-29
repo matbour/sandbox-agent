@@ -70,17 +70,14 @@ var unsafeName = regexp.MustCompile(`[^a-z0-9-]+`)
 // Handle claims the issue (removes the trigger label), runs it, and reports on the issue.
 func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	log := r.Log.With("issue", is.Identifier)
-	model := r.Cfg.AgentModel
-	var keep []string
+	var names, keep []string
 	for _, l := range is.Labels.Nodes {
-		switch {
-		case strings.EqualFold(l.Name, r.Cfg.OpusLabel):
-			model = r.Cfg.OpusModel
-		case strings.EqualFold(l.Name, r.Cfg.TriggerLabel):
-		default:
+		names = append(names, l.Name)
+		if !r.Cfg.IsTrigger(l.Name) {
 			keep = append(keep, l.ID)
 		}
 	}
+	model, _ := r.Cfg.ModelFor(names)
 	if err := r.Linear.SetLabels(ctx, is.ID, keep); err != nil {
 		log.Error("cannot remove trigger label, skipping", "err", err)
 		return
@@ -97,10 +94,10 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 			msg += fmt.Sprintf("\n\nAgent cost: $%.2f, %d turns.", out.CostUSD, out.Turns)
 		}
 		msg += fmt.Sprintf("\n\nAdd the `%s` label again to retry", r.Cfg.TriggerLabel)
-		if model != r.Cfg.OpusModel {
-			msg += fmt.Sprintf(", or `%s` to retry with `%s`", r.Cfg.OpusLabel, r.Cfg.OpusModel)
+		if retry, _ := r.Cfg.ModelFor([]string{r.Cfg.RetryLabel}); r.Cfg.RetryLabel != "" && retry != model {
+			msg += fmt.Sprintf(", or `%s` to retry with `%s`", r.Cfg.RetryLabel, retry)
 		}
-		msg += "."
+		msg += ". Model labels: " + modelLabelList(r.Cfg) + "."
 		r.comment(ctx, is, msg)
 		return
 	}
@@ -306,6 +303,14 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	return ex, nil
+}
+
+func modelLabelList(cfg *config.Config) string {
+	parts := []string{fmt.Sprintf("`%s` (%s)", cfg.TriggerLabel, cfg.AgentModel)}
+	for _, m := range cfg.ModelLabels {
+		parts = append(parts, fmt.Sprintf("`%s`", m.Label))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func prDescription(is linear.Issue, body string, warnings []string, out *Outcome) string {

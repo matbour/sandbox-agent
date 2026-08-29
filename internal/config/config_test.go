@@ -56,3 +56,34 @@ func TestLoadReportsMissing(t *testing.T) {
 		t.Fatalf("expected missing settings, got %v", err)
 	}
 }
+
+func TestModelFor(t *testing.T) {
+	c := &Config{TriggerLabel: "agent", AgentModel: "default-model"}
+	var err error
+	if c.ModelLabels, err = parseModelLabels(DefaultModelLabels); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		labels []string
+		model  string
+		ok     bool
+	}{
+		{[]string{"agent"}, "default-model", true},
+		{[]string{"Bug", "AGENT-HAIKU"}, "claude-haiku-5-5", true},
+		{[]string{"agent-opus", "agent-haiku"}, "claude-opus-5-5", true},
+		{[]string{"agent", "agent-fable"}, "claude-fable-5-2", true},
+		{[]string{"bug"}, "default-model", false},
+	}
+	for _, tc := range cases {
+		m, ok := c.ModelFor(tc.labels)
+		if m != tc.model || ok != tc.ok {
+			t.Errorf("%v: got %s/%v, want %s/%v", tc.labels, m, ok, tc.model, tc.ok)
+		}
+	}
+	if !c.IsTrigger("Agent-Sonnet") || c.IsTrigger("agentic") {
+		t.Error("IsTrigger")
+	}
+	if _, err := parseModelLabels("agent-x"); err == nil {
+		t.Error("expected parse error")
+	}
+}

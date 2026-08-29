@@ -29,8 +29,9 @@ Limits: maximum turns, wall clock, and the proxy budget.
   is the permission boundary.
 - Proxy: `ANTHROPIC_BASE_URL` points at the proxy route; the real key is added by the proxy.
 - Claude Code has its own optional sandboxing; the outer sandbox replaces it here.
-- Model: `--model` is always passed (D16): Sonnet by default, Opus when the issue has the
-  `agent-opus` label. Without it, the `sbx` image runs Opus.
+- Model: `--model` is always passed (D16, D20): Sonnet for `agent`, or the model named by an
+  explicit label (`agent-haiku`, `agent-sonnet`, `agent-opus`, `agent-fable`). Without `--model`,
+  the `sbx` image runs Opus.
 - Billing: API credits of the owner's Anthropic organisation. Create a dedicated API key for this
   project, with a spend limit if the Console allows it.
 - To verify: arm64 Linux install method, the exact flags for the current version, and the

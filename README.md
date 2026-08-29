@@ -34,7 +34,8 @@ Design, threat model, escape tests and roadmap: [docs/](docs/README.md).
 
 ## Running the worker
 
-`agentd` polls Linear for issues labelled `agent`, runs Claude Code on each one inside a Docker
+`agentd` polls Linear for issues labelled `agent` (default model) or `agent-<model>` (`agent-haiku`,
+`agent-sonnet`, `agent-opus`, `agent-fable`), runs Claude Code on each one inside a Docker
 Sandboxes microVM, and opens a draft pull request. Setup:
 
 1. Install and configure `sbx` (see [docs/docker-sandboxes.md](docs/docker-sandboxes.md)).
