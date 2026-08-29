@@ -1,0 +1,20 @@
+# User unit: ~/.config/systemd/user/sandbox-agent.service
+#   systemctl --user daemon-reload && systemctl --user enable --now sandbox-agent
+# Requires lingering so it runs without an open session (once, by the owner):
+#   sudo loginctl enable-linger <user>
+[Unit]
+Description=sandbox-agent: Linear issues to draft pull requests
+After=network-online.target
+
+[Service]
+ExecStart=%h/sandbox-agent/bin/agentd
+Restart=on-failure
+RestartSec=30s
+# agentd starts the sbx daemon pinned to cores 4-7. Leave it and its VMs running across agentd
+# restarts: only the agentd process is stopped.
+KillMode=process
+CPUAffinity=0-3
+Nice=5
+
+[Install]
+WantedBy=default.target

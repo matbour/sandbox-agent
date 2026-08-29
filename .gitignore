@@ -1,0 +1,12 @@
+/bin/
+.env
+*.local
+
+# Private notes: home network, host access, personal context. Never commit.
+/docs/private/
+
+# Credentials and private settings for agentd (see README). Never commit.
+/secrets/
+
+# Local Claude Code settings.
+/.claude/settings.local.json
