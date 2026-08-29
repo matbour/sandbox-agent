@@ -15,6 +15,8 @@ import (
 // Config holds every setting agentd needs. Secrets stay on the host.
 type Config struct {
 	LinearAPIKey   string
+	LinearClientID string // OAuth application (client credentials); preferred over the API key
+	LinearSecret   string
 	TriggerLabel   string
 	TeamKeys       []string // empty: all teams
 	PollInterval   time.Duration
@@ -45,7 +47,8 @@ type Config struct {
 // Secrets directory layout (at the repository root by default, ignored by Git):
 //
 //	secrets/config.env       non-secret settings that name private things (KEY=VALUE)
-//	secrets/linear-api-key   Linear personal API key
+//	secrets/linear-client-id, linear-client-secret  Linear OAuth application (client credentials)
+//	secrets/linear-api-key   Linear personal API key, used if the application is not set
 //	secrets/github-app.pem   GitHub App private key
 //	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
 //
@@ -53,6 +56,8 @@ type Config struct {
 const (
 	ConfigFile    = "config.env"
 	LinearKeyFile = "linear-api-key"
+	LinearIDFile  = "linear-client-id"
+	LinearSecFile = "linear-client-secret"
 	GitHubKeyFile = "github-app.pem"
 	SetupFile     = "setup.sh"
 )
@@ -143,6 +148,14 @@ func load(secretsDir string, full bool) (*Config, error) {
 			return nil, err
 		}
 	}
+	linearID, err := readSecret(secretsDir, LinearIDFile)
+	if err != nil {
+		return nil, err
+	}
+	linearSecret, err := readSecret(secretsDir, LinearSecFile)
+	if err != nil {
+		return nil, err
+	}
 	setupDefault := ""
 	if p := filepath.Join(secretsDir, SetupFile); fileExists(p) {
 		setupDefault = p
@@ -150,6 +163,8 @@ func load(secretsDir string, full bool) (*Config, error) {
 	home, _ := os.UserHomeDir()
 	c := &Config{
 		LinearAPIKey:   linearKey,
+		LinearClientID: linearID,
+		LinearSecret:   linearSecret,
 		TriggerLabel:   get("TRIGGER_LABEL", "agent"),
 		TeamKeys:       list(get("LINEAR_TEAMS", "")),
 		GitHubAppID:    get("GITHUB_APP_ID", ""),
@@ -169,7 +184,6 @@ func load(secretsDir string, full bool) (*Config, error) {
 		AuthorName:     get("COMMIT_AUTHOR_NAME", ""),
 		AuthorEmail:    get("COMMIT_AUTHOR_EMAIL", ""),
 	}
-	var err error
 	if c.PollInterval, err = time.ParseDuration(get("POLL_INTERVAL", "30s")); err != nil {
 		return nil, fmt.Errorf("POLL_INTERVAL: %w", err)
 	}
@@ -197,12 +211,17 @@ func load(secretsDir string, full bool) (*Config, error) {
 	}
 	var missing []string
 	for k, v := range map[string]string{
-		filepath.Join(secretsDir, LinearKeyFile) + " (missing or empty)": c.LinearAPIKey, "GITHUB_APP_ID": c.GitHubAppID,
+		"GITHUB_APP_ID":          c.GitHubAppID,
 		"GITHUB_INSTALLATION_ID": c.GitHubInstall, "GITHUB_REPO": c.Repo,
 	} {
 		if v == "" {
 			missing = append(missing, k)
 		}
+	}
+	if (c.LinearClientID == "") != (c.LinearSecret == "") {
+		missing = append(missing, fmt.Sprintf("both %s and %s, or neither", LinearIDFile, LinearSecFile))
+	} else if c.LinearClientID == "" && c.LinearAPIKey == "" {
+		missing = append(missing, fmt.Sprintf("%s and %s (or %s)", LinearIDFile, LinearSecFile, LinearKeyFile))
 	}
 	if st, err := os.Stat(c.GitHubKeyPath); err != nil || st.Size() == 0 {
 		missing = append(missing, c.GitHubKeyPath+" (missing or empty)")

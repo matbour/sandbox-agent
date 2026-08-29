@@ -138,3 +138,14 @@ Sonnet 5.5). `MODEL_LABELS` maps explicit labels to models, weakest first: `agen
 the strongest wins. A failed run suggests `RETRY_LABEL` (`agent-opus`). All four models answered
 from inside an `sbx` VM with Claude Code 2.1.322; a minimal call cost $0.002 (Haiku), $0.034
 (Sonnet), $0.070 (Opus) and $0.149 (Fable).
+
+## D21. Linear as an OAuth application, not a personal key (2026-11-13)
+
+Same idea as the GitHub App (D12). An OAuth application with client credentials gives tokens with
+the `app` actor: comments are created as the application instead of the owner, the application takes
+no seat, and it can be revoked independently. `agentd` mints a token from `secrets/linear-client-id`
+and `secrets/linear-client-secret` (scope `read,write`), caches it in the state directory (0600),
+renews it a day before its 30-day expiry and once on a 401. The personal API key remains a fallback
+while those files are empty. Next level, not done: Linear's agent mode (assign or mention the
+application, live activities in the issue), which needs agent session webhooks and therefore a public
+endpoint.

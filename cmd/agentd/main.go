@@ -83,7 +83,14 @@ func main() {
 	if err != nil {
 		fail(log, "GitHub App key", err)
 	}
-	r := &job.Runner{Cfg: cfg, Linear: linear.New(cfg.LinearAPIKey), App: app, Log: log}
+	lc := linear.New(cfg.LinearAPIKey)
+	if cfg.LinearClientID != "" {
+		lc = linear.NewApp(cfg.LinearClientID, cfg.LinearSecret, filepath.Join(cfg.StateDir, "linear-token.json"))
+		if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
+			fail(log, "state dir", err)
+		}
+	}
+	r := &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log}
 
 	if *check {
 		if err := runCheck(ctx, r); err != nil {
@@ -131,6 +138,15 @@ func runCheck(ctx context.Context, r *job.Runner) error {
 	}
 	fmt.Printf("GitHub: %s reachable, default branch %s, token expires %s\n",
 		r.Cfg.Repo, branch, tok.ExpiresAt.Format(time.RFC3339))
+	who, err := r.Linear.Viewer(ctx)
+	if err != nil {
+		return err
+	}
+	mode := "personal API key"
+	if r.Linear.IsApp() {
+		mode = "OAuth application (client credentials)"
+	}
+	fmt.Printf("Linear: acting as %q via %s\n", who, mode)
 	issues, err := r.Linear.IssuesWithLabel(ctx, r.Cfg.Labels(), r.Cfg.TeamKeys)
 	if err != nil {
 		return err

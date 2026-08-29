@@ -42,7 +42,8 @@ Sandboxes microVM, and opens a draft pull request. Setup:
 2. Fill in `secrets/` at the repository root (ignored by Git, `chmod 700`, files `chmod 600`;
    `agentd` refuses to start otherwise):
    - `config.env`: settings, from `deploy/examples/config.env`;
-   - `linear-api-key`: a Linear personal API key;
+   - `linear-client-id` and `linear-client-secret`: a Linear OAuth application with client
+     credentials enabled (comments appear as the application), or `linear-api-key`: a personal key;
    - `github-app.pem`: the GitHub App private key;
    - `setup.sh` and `setup.notes.md` (optional): from `deploy/examples/`.
 3. `bin/agentd -check` verifies Linear and GitHub access and lists matching issues.
