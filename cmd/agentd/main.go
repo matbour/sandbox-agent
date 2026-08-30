@@ -18,6 +18,7 @@ import (
 	"github.com/matbour/sandbox-agent/internal/github"
 	"github.com/matbour/sandbox-agent/internal/job"
 	"github.com/matbour/sandbox-agent/internal/linear"
+	"github.com/matbour/sandbox-agent/internal/web"
 )
 
 func main() {
@@ -99,6 +100,30 @@ func main() {
 		return
 	}
 
+	wake := make(chan struct{}, 1)
+	if cfg.WebAddr != "" {
+		srv := &web.Server{
+			StateDir: cfg.StateDir, LinearWebhookSecret: []byte(cfg.LinearHookKey),
+			Labels: cfg.Labels, Log: log,
+			Trigger: func() {
+				select {
+				case wake <- struct{}{}:
+				default:
+				}
+			},
+		}
+		if cfg.AccessTeam != "" {
+			srv.Access = &web.Access{Team: cfg.AccessTeam, AUD: cfg.AccessAUD}
+		}
+		go func() {
+			if err := srv.ListenAndServe(ctx, cfg.WebAddr); err != nil {
+				log.Error("http server", "err", err)
+			}
+		}()
+		log.Info("http server", "addr", cfg.WebAddr, "linear_webhook", cfg.LinearHookKey != "",
+			"access", cfg.AccessTeam != "")
+	}
+
 	log.Info("agentd started", "repo", cfg.Repo, "labels", cfg.Labels(), "default_model", cfg.AgentModel,
 		"teams", cfg.TeamKeys,
 		"every", cfg.PollInterval)
@@ -111,7 +136,13 @@ func main() {
 			if ctx.Err() != nil {
 				break
 			}
-			r.Handle(ctx, is)
+			// A job runs on its own context: a stop signal (systemctl restart) lets the current job
+			// finish instead of killing its sandbox halfway; the loop then exits. Its own timeouts
+			// (AGENT_TIMEOUT, setup) still bound it.
+			if ctx.Err() == nil {
+				log.Info("job starting; a stop request now waits for it to finish", "issue", is.Identifier)
+			}
+			r.Handle(context.WithoutCancel(ctx), is)
 		}
 		if *once {
 			return
@@ -121,6 +152,7 @@ func main() {
 			log.Info("stopping")
 			return
 		case <-time.After(cfg.PollInterval):
+		case <-wake:
 		}
 	}
 }

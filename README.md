@@ -58,7 +58,8 @@ bin/agentd -show ENG-123    # one job: stage, PR, error or the agent's last mess
 watch -n 5 bin/agentd -status
 ```
 
-Each job writes `status.json` in its directory under `~/.local/state/sandbox-agent/jobs/`.
+The same overview is served at `http://127.0.0.1:8787/` (and through the tunnel, behind
+Cloudflare Access; see docs/decisions.md D22). Each job writes `status.json` in its directory under `~/.local/state/sandbox-agent/jobs/`.
 
 Try the sandbox part on a local repository, without Linear or GitHub:
 

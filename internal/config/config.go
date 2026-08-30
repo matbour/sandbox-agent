@@ -17,6 +17,10 @@ type Config struct {
 	LinearAPIKey   string
 	LinearClientID string // OAuth application (client credentials); preferred over the API key
 	LinearSecret   string
+	LinearHookKey  string // Linear webhook signing secret; empty disables the webhook route
+	WebAddr        string // loopback address of the HTTP server; empty disables it
+	AccessTeam     string // Cloudflare Access team name, for the overview behind the tunnel
+	AccessAUD      string // Cloudflare Access application audience tag
 	TriggerLabel   string
 	TeamKeys       []string // empty: all teams
 	PollInterval   time.Duration
@@ -49,17 +53,19 @@ type Config struct {
 //	secrets/config.env       non-secret settings that name private things (KEY=VALUE)
 //	secrets/linear-client-id, linear-client-secret  Linear OAuth application (client credentials)
 //	secrets/linear-api-key   Linear personal API key, used if the application is not set
+//	secrets/linear-webhook-secret  signing secret of the Linear webhook (optional)
 //	secrets/github-app.pem   GitHub App private key
 //	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
 //
 // The directory and every file read from it must not be accessible to group or others.
 const (
-	ConfigFile    = "config.env"
-	LinearKeyFile = "linear-api-key"
-	LinearIDFile  = "linear-client-id"
-	LinearSecFile = "linear-client-secret"
-	GitHubKeyFile = "github-app.pem"
-	SetupFile     = "setup.sh"
+	ConfigFile     = "config.env"
+	LinearKeyFile  = "linear-api-key"
+	LinearIDFile   = "linear-client-id"
+	LinearSecFile  = "linear-client-secret"
+	LinearHookFile = "linear-webhook-secret"
+	GitHubKeyFile  = "github-app.pem"
+	SetupFile      = "setup.sh"
 )
 
 // Load reads the secrets directory, lets the environment override settings, and requires the
@@ -156,6 +162,10 @@ func load(secretsDir string, full bool) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	linearHook, err := readSecret(secretsDir, LinearHookFile)
+	if err != nil {
+		return nil, err
+	}
 	setupDefault := ""
 	if p := filepath.Join(secretsDir, SetupFile); fileExists(p) {
 		setupDefault = p
@@ -165,6 +175,10 @@ func load(secretsDir string, full bool) (*Config, error) {
 		LinearAPIKey:   linearKey,
 		LinearClientID: linearID,
 		LinearSecret:   linearSecret,
+		LinearHookKey:  linearHook,
+		WebAddr:        get("WEB_ADDR", "127.0.0.1:8787"),
+		AccessTeam:     get("ACCESS_TEAM", ""),
+		AccessAUD:      get("ACCESS_AUD", ""),
 		TriggerLabel:   get("TRIGGER_LABEL", "agent"),
 		TeamKeys:       list(get("LINEAR_TEAMS", "")),
 		GitHubAppID:    get("GITHUB_APP_ID", ""),
@@ -202,6 +216,9 @@ func load(secretsDir string, full bool) (*Config, error) {
 	}
 	if c.ModelLabels, err = parseModelLabels(get("MODEL_LABELS", DefaultModelLabels)); err != nil {
 		return nil, fmt.Errorf("MODEL_LABELS: %w", err)
+	}
+	if (c.AccessTeam == "") != (c.AccessAUD == "") {
+		return nil, fmt.Errorf("set both ACCESS_TEAM and ACCESS_AUD, or neither")
 	}
 	if (c.AuthorName == "") != (c.AuthorEmail == "") {
 		return nil, fmt.Errorf("set both COMMIT_AUTHOR_NAME and COMMIT_AUTHOR_EMAIL, or neither")

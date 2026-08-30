@@ -13,6 +13,8 @@ RestartSec=30s
 # agentd starts the sbx daemon pinned to cores 4-7. Leave it and its VMs running across agentd
 # restarts: only the agentd process is stopped.
 KillMode=process
+# On stop, agentd finishes the running job (setup + agent, bounded by AGENT_TIMEOUT) before exiting.
+TimeoutStopSec=70min
 CPUAffinity=0-3
 Nice=5
 

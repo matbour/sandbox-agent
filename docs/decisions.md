@@ -149,3 +149,21 @@ renews it a day before its 30-day expiry and once on a 401. The personal API key
 while those files are empty. Next level, not done: Linear's agent mode (assign or mention the
 application, live activities in the issue), which needs agent session webhooks and therefore a public
 endpoint.
+
+## D22. HTTP server behind the tunnel: Access for people, signatures for webhooks (2026-11-13)
+
+`agentd` serves on loopback only (`127.0.0.1:8787`, refused otherwise), exposed by a dedicated
+tunnel hostname rule placed before the wildcard. Two kinds of clients:
+
+- People (`/`, `/api/jobs`): a Cloudflare Access application on the hostname. `agentd` also verifies
+  the `Cf-Access-Jwt-Assertion` JWT (RS256, team certs, issuer, audience, expiry), so an edge
+  misconfiguration does not expose the overview. Requests without `Cf-Connecting-Ip` come from the
+  host itself (the edge always adds it) and are allowed.
+- Webhooks (`/webhooks/*`): a more specific Access application in Bypass, because Linear and GitHub
+  cannot authenticate to Access. `agentd` checks the HMAC-SHA256 signature of the raw body
+  (`Linear-Signature`), rejects timestamps more than a minute off, and ignores repeated
+  `Linear-Delivery` IDs. A valid issue event carrying a trigger label wakes the worker at once;
+  polling stays as the fallback.
+
+Also: a stop signal lets the running job finish (the unit allows 70 min) instead of killing its
+sandbox; a restart during a job killed one on 2026-11-13.
