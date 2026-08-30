@@ -37,7 +37,10 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 
 - [x] Polling on the label (D15); comments on the issue (picked up, PR link or error, cost).
 - [x] systemd user unit running (`deploy/systemd/`), lingering enabled by the owner (2026-11-13).
-- [ ] Later: webhook receiver with signature check (E-HOOK) and a tunnel hostname rule.
+- [x] Webhook receiver with signature check, overview at `/`, behind the tunnel and Cloudflare
+      Access (D22, 2026-11-13). Checked from outside: login redirect on `/`, 401 for unsigned or
+      forged webhooks, 200 for a signed one.
+- [ ] Escape tests E-HOOK scripted.
 - [ ] End-to-end: label an issue, get a draft PR.
 
 ## M1: Firecracker spike
