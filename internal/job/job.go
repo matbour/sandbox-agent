@@ -88,6 +88,10 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	out, err := r.Run(ctx, is, model)
 	took := time.Since(start).Round(time.Second)
 	if out != nil {
+		// The clone and the workspace (with node_modules) take gigabytes: keep only the logs,
+		// the prompt and the patch.
+		_ = os.RemoveAll(filepath.Join(out.Dir, "repo"))
+		_ = os.RemoveAll(filepath.Join(out.Dir, "workspace"))
 		update(out.Dir, func(st *State) {
 			st.CostUSD, st.Turns = out.CostUSD, out.Turns
 			if err != nil {

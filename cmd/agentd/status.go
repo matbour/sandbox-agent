@@ -113,9 +113,9 @@ func printJob(w io.Writer, stateDir, issue string) error {
 	return fmt.Errorf("no job for %s", issue)
 }
 
+// firstLine flattens an error to one line ("patch rejected: - bunfig.toml: protected file").
 func firstLine(s string) string {
-	l, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
-	return l
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func cut(s string, n int) string {

@@ -2,6 +2,8 @@ package job
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,11 +24,13 @@ const (
 	StageInterrupted = "interrupted"
 )
 
-// StateFile is the per-job status file, rewritten at each stage.
-const StateFile = "status.json"
+// StateFile holds every job, in the state directory. It is the single source of truth for
+// `agentd -status`, the overview and /api/jobs; per-job directories keep the logs and the patch.
+const StateFile = "state.json"
 
-// State is what `agentd -status` shows about a job.
+// State is one job.
 type State struct {
+	ID       string     `json:"id"` // the job directory name, e.g. eng-750-20261113-124431
 	Issue    string     `json:"issue"`
 	Title    string     `json:"title"`
 	URL      string     `json:"url,omitempty"`
@@ -41,7 +45,12 @@ type State struct {
 	CostUSD  float64    `json:"cost_usd,omitempty"`
 	Turns    int        `json:"turns,omitempty"`
 	Error    string     `json:"error,omitempty"`
-	Dir      string     `json:"-"`
+	Dir      string     `json:"dir"`
+}
+
+type stateFile struct {
+	Version int     `json:"version"`
+	Jobs    []State `json:"jobs"`
 }
 
 // Terminal reports whether the job has finished, one way or another.
@@ -60,54 +69,142 @@ func (s *State) Elapsed(now time.Time) time.Duration {
 	return end.Sub(s.Started).Round(time.Second)
 }
 
-// update applies fn to dir's state and writes it back atomically. Errors are ignored: the status
-// file is for humans and must never fail a job.
-func update(dir string, fn func(*State)) {
-	path := filepath.Join(dir, StateFile)
-	var s State
-	if b, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(b, &s)
+// stateRoot is the state directory a job directory belongs to (<root>/jobs/<id>).
+func stateRoot(dir string) string { return filepath.Dir(filepath.Dir(dir)) }
+
+// withState runs fn on the state file under an exclusive lock, so agentd and a concurrent
+// `agentd -try` never lose each other's updates. fn's changes are written atomically.
+func withState(root string, write bool, fn func(*stateFile) error) error {
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return err
 	}
-	fn(&s)
-	s.Updated = time.Now().UTC()
-	if s.Stage == StageDone || s.Stage == StageFailed {
-		t := s.Updated
-		s.Finished = &t
+	lock, err := os.OpenFile(filepath.Join(root, StateFile+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
 	}
-	b, _ := json.MarshalIndent(&s, "", "  ")
+	defer lock.Close()
+	how := syscall.LOCK_SH
+	if write {
+		how = syscall.LOCK_EX
+	}
+	if err := syscall.Flock(int(lock.Fd()), how); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+
+	path := filepath.Join(root, StateFile)
+	var sf stateFile
+	b, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if err := json.Unmarshal(b, &sf); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		return err
+	}
+	if err := fn(&sf); err != nil || !write {
+		return err
+	}
+	sf.Version = 1
+	out, err := json.MarshalIndent(&sf, "", "  ")
+	if err != nil {
+		return err
+	}
 	tmp := path + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		_ = os.Rename(tmp, path)
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return err
 	}
+	return os.Rename(tmp, path)
+}
+
+// update applies fn to the job stored for dir, creating it if needed. Errors are ignored: the
+// state is for humans and must never fail a job.
+func update(dir string, fn func(*State)) {
+	_ = withState(stateRoot(dir), true, func(sf *stateFile) error {
+		id := filepath.Base(dir)
+		i := -1
+		for k := range sf.Jobs {
+			if sf.Jobs[k].ID == id {
+				i = k
+				break
+			}
+		}
+		if i < 0 {
+			sf.Jobs = append(sf.Jobs, State{ID: id, Dir: dir})
+			i = len(sf.Jobs) - 1
+		}
+		s := &sf.Jobs[i]
+		fn(s)
+		s.Updated = time.Now().UTC()
+		if (s.Stage == StageDone || s.Stage == StageFailed) && s.Finished == nil {
+			t := s.Updated
+			s.Finished = &t
+		}
+		return nil
+	})
 }
 
 func setStage(dir, stage string) { update(dir, func(s *State) { s.Stage = stage }) }
 
-// Jobs returns the jobs under stateDir, newest first. A running job whose process is gone is
-// reported as interrupted.
+// Jobs returns the jobs, newest first. A running job whose process is gone is reported as
+// interrupted.
 func Jobs(stateDir string) ([]State, error) {
-	dirs, err := filepath.Glob(filepath.Join(stateDir, "jobs", "*", StateFile))
+	var out []State
+	err := withState(stateDir, false, func(sf *stateFile) error {
+		out = append(out, sf.Jobs...)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	var out []State
-	for _, p := range dirs {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			continue
+	for i := range out {
+		if !out[i].Terminal() && !alive(out[i].PID) {
+			out[i].Stage = StageInterrupted
 		}
-		var s State
-		if json.Unmarshal(b, &s) != nil {
-			continue
-		}
-		s.Dir = filepath.Dir(p)
-		if !s.Terminal() && !alive(s.PID) {
-			s.Stage = StageInterrupted
-		}
-		out = append(out, s)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Started.After(out[j].Started) })
 	return out, nil
+}
+
+// Import adds jobs from the per-job status.json files written by earlier versions, and removes
+// those files. Jobs already in the state file are kept as they are.
+func Import(stateDir string) (int, error) {
+	files, err := filepath.Glob(filepath.Join(stateDir, "jobs", "*", "status.json"))
+	if err != nil || len(files) == 0 {
+		return 0, err
+	}
+	n := 0
+	err = withState(stateDir, true, func(sf *stateFile) error {
+		have := map[string]bool{}
+		for _, j := range sf.Jobs {
+			have[j.ID] = true
+		}
+		for _, f := range files {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			var s State
+			if json.Unmarshal(b, &s) != nil {
+				continue
+			}
+			s.Dir = filepath.Dir(f)
+			s.ID = filepath.Base(s.Dir)
+			if !have[s.ID] {
+				sf.Jobs = append(sf.Jobs, s)
+				n++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return n, err
+	}
+	for _, f := range files {
+		_ = os.Remove(f)
+	}
+	return n, nil
 }
 
 func alive(pid int) bool {

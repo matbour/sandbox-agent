@@ -41,6 +41,9 @@ func main() {
 		if err != nil {
 			fail(log, "config", err)
 		}
+		if n, err := job.Import(cfg.StateDir); err == nil && n > 0 {
+			fmt.Fprintf(os.Stderr, "imported %d job(s) into %s\n", n, filepath.Join(cfg.StateDir, job.StateFile))
+		}
 		if *show != "" {
 			err = printJob(os.Stdout, cfg.StateDir, *show)
 		} else {
@@ -98,6 +101,12 @@ func main() {
 			fail(log, "check", err)
 		}
 		return
+	}
+
+	if n, err := job.Import(cfg.StateDir); err != nil {
+		log.Warn("import old job status files", "err", err)
+	} else if n > 0 {
+		log.Info("imported old job status files", "jobs", n)
 	}
 
 	wake := make(chan struct{}, 1)

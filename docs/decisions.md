@@ -167,3 +167,13 @@ tunnel hostname rule placed before the wildcard. Two kinds of clients:
 
 Also: a stop signal lets the running job finish (the unit allows 70 min) instead of killing its
 sandbox; a restart during a job killed one on 2026-11-13.
+
+## D23. One state file for all jobs (2026-11-13)
+
+Replaces the per-job `status.json`. `state.json` in the state directory lists every job (stage,
+model, times, cost, PR, error, directory). Writes take an exclusive `flock` on `state.json.lock`
+and replace the file atomically, so the service and a concurrent `agentd -try` never lose
+updates; readers take a shared lock. Older per-job files are imported once and removed. SQLite was
+not needed at this volume and would bring cgo or a large pure-Go dependency (D1). After each job
+the clone and the workspace are deleted (a few GB with `node_modules`); the job directory keeps
+the prompt, the logs and the patch.

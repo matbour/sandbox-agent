@@ -35,7 +35,10 @@ func (s *Server) views() ([]jobView, error) {
 		}
 		switch j.Stage {
 		case job.StageFailed:
-			v.Detail, _, _ = strings.Cut(strings.TrimSpace(j.Error), "\n")
+			v.Detail = strings.Join(strings.Fields(j.Error), " ")
+			if r := []rune(v.Detail); len(r) > 160 {
+				v.Detail = string(r[:159]) + "…"
+			}
 		case job.StageInterrupted:
 			v.Detail = "agentd stopped during the job"
 		}
