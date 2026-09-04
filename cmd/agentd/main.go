@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -109,11 +110,22 @@ func main() {
 		log.Info("imported old job status files", "jobs", n)
 	}
 
+	// Mentions of the agent in Linear comments update the issue's pull request.
+	var mention *regexp.Regexp
+	meID, meName, err := r.Linear.Me(ctx)
+	if err != nil {
+		log.Warn("cannot read the Linear identity; mentions disabled", "err", err)
+	} else {
+		mention = job.MentionPattern(meName)
+		log.Info("mentions enabled", "as", "@"+meName, "since", job.MentionWatermark(cfg.StateDir))
+	}
+	mentioned := func(body string) bool { return mention != nil && mention.MatchString(body) }
+
 	wake := make(chan struct{}, 1)
 	if cfg.WebAddr != "" {
 		srv := &web.Server{
 			StateDir: cfg.StateDir, LinearWebhookSecret: []byte(cfg.LinearHookKey),
-			Labels: cfg.Labels, Log: log,
+			Labels: cfg.Labels, Mention: mentioned, Log: log,
 			Trigger: func() {
 				select {
 				case wake <- struct{}{}:
@@ -152,6 +164,24 @@ func main() {
 				log.Info("job starting; a stop request now waits for it to finish", "issue", is.Identifier)
 			}
 			r.Handle(context.WithoutCancel(ctx), is)
+		}
+		if mention != nil && ctx.Err() == nil {
+			since := job.MentionWatermark(cfg.StateDir)
+			if recent := time.Now().Add(-6 * time.Hour); since.Before(recent) {
+				since = recent
+			}
+			words := strings.Fields(meName)
+			comments, err := r.Linear.CommentsSince(ctx, since, words[len(words)-1])
+			if err != nil {
+				log.Error("poll Linear comments", "err", err)
+			}
+			for _, c := range comments {
+				if ctx.Err() != nil || c.Issue == nil || (c.User != nil && c.User.ID == meID) ||
+					!mentioned(c.Body) || !job.ClaimMention(cfg.StateDir, c.ID) {
+					continue
+				}
+				r.HandleMention(context.WithoutCancel(ctx), c)
+			}
 		}
 		if *once {
 			return

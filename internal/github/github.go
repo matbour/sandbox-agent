@@ -185,3 +185,146 @@ func (a *App) call(ctx context.Context, method, path, auth string, in, out any) 
 	}
 	return nil
 }
+
+// PR is the subset of a pull request the worker uses.
+type PR struct {
+	Number  int    `json:"number"`
+	State   string `json:"state"`
+	Merged  bool   `json:"merged"`
+	HTMLURL string `json:"html_url"`
+	Head    struct {
+		Ref string `json:"ref"`
+		SHA string `json:"sha"`
+	} `json:"head"`
+	Base struct {
+		Ref string `json:"ref"`
+	} `json:"base"`
+}
+
+// GetPR returns pull request n.
+func (r *Repo) GetPR(ctx context.Context, n int) (*PR, error) {
+	var pr PR
+	err := r.call(ctx, http.MethodGet, fmt.Sprintf("/pulls/%d", n), nil, &pr)
+	return &pr, err
+}
+
+// Feedback is what people and bots said on a pull request, oldest first.
+type Feedback struct {
+	Author string
+	Kind   string // comment, review, review comment
+	Path   string // file, for review comments
+	Line   int
+	Body   string
+}
+
+// PRFeedback collects conversation comments, review summaries and inline review comments.
+func (r *Repo) PRFeedback(ctx context.Context, n int) ([]Feedback, error) {
+	type user struct {
+		Login string `json:"login"`
+	}
+	var issueComments []struct {
+		User user   `json:"user"`
+		Body string `json:"body"`
+	}
+	var reviews []struct {
+		User  user   `json:"user"`
+		Body  string `json:"body"`
+		State string `json:"state"`
+	}
+	var inline []struct {
+		User user   `json:"user"`
+		Body string `json:"body"`
+		Path string `json:"path"`
+		Line int    `json:"line"`
+	}
+	if err := r.call(ctx, http.MethodGet, fmt.Sprintf("/issues/%d/comments?per_page=100", n), nil, &issueComments); err != nil {
+		return nil, err
+	}
+	if err := r.call(ctx, http.MethodGet, fmt.Sprintf("/pulls/%d/reviews?per_page=100", n), nil, &reviews); err != nil {
+		return nil, err
+	}
+	if err := r.call(ctx, http.MethodGet, fmt.Sprintf("/pulls/%d/comments?per_page=100", n), nil, &inline); err != nil {
+		return nil, err
+	}
+	var out []Feedback
+	for _, c := range issueComments {
+		out = append(out, Feedback{Author: c.User.Login, Kind: "comment", Body: c.Body})
+	}
+	for _, v := range reviews {
+		if strings.TrimSpace(v.Body) != "" {
+			out = append(out, Feedback{Author: v.User.Login, Kind: "review (" + strings.ToLower(v.State) + ")", Body: v.Body})
+		}
+	}
+	for _, c := range inline {
+		out = append(out, Feedback{Author: c.User.Login, Kind: "review comment", Path: c.Path, Line: c.Line, Body: c.Body})
+	}
+	return out, nil
+}
+
+// Check is the outcome of one CI check or commit status.
+type Check struct {
+	Name       string
+	Conclusion string // success, failure, pending, ...
+	Summary    string
+}
+
+// Checks returns the check runs and commit statuses for a commit.
+func (r *Repo) Checks(ctx context.Context, sha string) ([]Check, error) {
+	var runs struct {
+		CheckRuns []struct {
+			Name       string `json:"name"`
+			Status     string `json:"status"`
+			Conclusion string `json:"conclusion"`
+			Output     struct {
+				Title   string `json:"title"`
+				Summary string `json:"summary"`
+			} `json:"output"`
+		} `json:"check_runs"`
+	}
+	var status struct {
+		Statuses []struct {
+			Context     string `json:"context"`
+			State       string `json:"state"`
+			Description string `json:"description"`
+		} `json:"statuses"`
+	}
+	if err := r.call(ctx, http.MethodGet, "/commits/"+sha+"/check-runs?per_page=100", nil, &runs); err != nil {
+		return nil, err
+	}
+	if err := r.call(ctx, http.MethodGet, "/commits/"+sha+"/status", nil, &status); err != nil {
+		return nil, err
+	}
+	var out []Check
+	for _, c := range runs.CheckRuns {
+		concl := c.Conclusion
+		if c.Status != "completed" {
+			concl = c.Status
+		}
+		out = append(out, Check{Name: c.Name, Conclusion: concl, Summary: strings.TrimSpace(c.Output.Title + " " + c.Output.Summary)})
+	}
+	for _, s := range status.Statuses {
+		out = append(out, Check{Name: s.Context, Conclusion: s.State, Summary: s.Description})
+	}
+	return out, nil
+}
+
+// Comment posts a conversation comment on pull request (or issue) n.
+func (r *Repo) Comment(ctx context.Context, n int, body string) error {
+	return r.call(ctx, http.MethodPost, fmt.Sprintf("/issues/%d/comments", n), map[string]string{"body": body}, nil)
+}
+
+// PRNumber extracts the number from a pull request URL (…/pull/123).
+func PRNumber(url string) (int, bool) {
+	i := strings.LastIndex(url, "/pull/")
+	if i < 0 {
+		return 0, false
+	}
+	n := 0
+	for _, c := range url[i+len("/pull/"):] {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, n > 0
+}

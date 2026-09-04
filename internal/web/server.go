@@ -31,7 +31,8 @@ type Server struct {
 	LinearWebhookSecret []byte  // empty: the Linear webhook route answers 404
 	Access              *Access // nil: only requests from the host itself reach the overview
 	Labels              func() []string
-	Trigger             func() // asks the worker to poll Linear now
+	Mention             func(body string) bool // whether a comment mentions the agent
+	Trigger             func()                 // asks the worker to poll Linear now
 	Log                 *slog.Logger
 
 	mu   sync.Mutex
@@ -131,9 +132,18 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if p.Type == "Issue" && p.Action != "remove" && s.mentionsLabel(p.Data) && s.Trigger != nil {
+	switch {
+	case p.Type == "Issue" && p.Action != "remove" && s.mentionsLabel(p.Data) && s.Trigger != nil:
 		s.Log.Info("linear webhook: issue event, polling now", "action", p.Action)
 		s.Trigger()
+	case p.Type == "Comment" && p.Action == "create" && s.Mention != nil && s.Trigger != nil:
+		var d struct {
+			Body string `json:"body"`
+		}
+		if json.Unmarshal(p.Data, &d) == nil && s.Mention(d.Body) {
+			s.Log.Info("linear webhook: agent mentioned, polling now")
+			s.Trigger()
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 }

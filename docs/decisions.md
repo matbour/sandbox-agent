@@ -177,3 +177,24 @@ updates; readers take a shared lock. Older per-job files are imported once and r
 not needed at this volume and would bring cgo or a large pure-Go dependency (D1). After each job
 the clone and the workspace are deleted (a few GB with `node_modules`); the job directory keeps
 the prompt, the logs and the patch.
+
+## D24. Mention the agent in a Linear comment to update its pull request (2026-11-13)
+
+A comment that mentions the agent's Linear name (`@Sandbox Agent`, matched loosely) on an issue
+where the agent already opened a pull request starts an update:
+
+1. The host clones the PR branch (blobless, full history) and merges the latest base branch into
+   it. That content comes from the base branch and is trusted. Conflicts are committed with their
+   markers to a local commit only.
+2. The agent gets the comment, the PR conversation, reviews and inline comments, the failed checks
+   and the list of conflicted files, all marked as untrusted data.
+3. Only the agent's own changes are validated (against the merged tree), plus a check that no
+   conflict marker remains. Conflict resolutions amend the local merge commit, so markers never
+   reach the branch; other changes go in their own commit.
+4. Fast-forward push to the same branch (no force), only for `agent/*` branches of open PRs;
+   a comment on the PR and a reply in the Linear thread.
+
+Mentions are found by polling recent comments (the webhook only wakes the worker). Comments older
+than the first run are ignored, handled comment IDs are kept in `state.json`, and the agent's own
+comments never trigger it. A model label written in the comment (`agent-opus`) overrides the
+model of the original job.

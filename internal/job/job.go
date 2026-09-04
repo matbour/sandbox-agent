@@ -207,6 +207,7 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 
 // Execution is the result of running the agent on a prepared workspace.
 type Execution struct {
+	Changed  int // files changed by the agent
 	CostUSD  float64
 	Turns    int
 	Warnings []string
@@ -217,6 +218,13 @@ type Execution struct {
 // Execute runs the sandbox and the agent on ws, then stages and validates the changes in repoDir.
 // On success the index of repoDir holds the validated change set.
 func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoDir, ws, slug, stamp string) (*Execution, error) {
+	return r.execute(ctx, is, model, dir, repoDir, ws, slug, stamp, nil, false)
+}
+
+// execute is Execute with a custom prompt (built from the setup notes) and, for updates of an
+// existing pull request, permission to end with no change.
+func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoDir, ws, slug, stamp string,
+	prompter func(notes string) string, allowEmpty bool) (*Execution, error) {
 	cfg := r.Cfg
 	ex := &Execution{}
 	logf := func(name string, data []byte) { _ = os.WriteFile(filepath.Join(dir, name), data, 0o600) }
@@ -270,6 +278,9 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	// Agent.
 	setStage(dir, StageAgent)
 	prompt := Prompt(is, notes)
+	if prompter != nil {
+		prompt = prompter(notes)
+	}
 	logf("prompt.md", []byte(prompt))
 	args := []string{"claude", "-p", prompt, "--dangerously-skip-permissions",
 		"--output-format", "json", "--no-session-persistence",
@@ -316,8 +327,12 @@ func (r *Runner) Execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	if err != nil {
 		return ex, err
 	}
+	if allowEmpty && len(changes) == 0 {
+		return ex, nil
+	}
 	v := patch.Validate(changes, len(full), patch.Limits{MaxFiles: cfg.MaxFiles, MaxBytes: cfg.MaxPatchBytes, DenyPaths: cfg.DenyPaths})
 	ex.Warnings = v.Warnings
+	ex.Changed = len(changes)
 	if !v.OK() {
 		if len(changes) == 0 {
 			return ex, fmt.Errorf("the agent made no changes. Its last message:\n\n%s", truncate(res.Result, 2500))

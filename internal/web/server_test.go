@@ -168,3 +168,18 @@ func (r rewrite) RoundTrip(req *http.Request) (*http.Response, error) {
 	out, _ := http.NewRequestWithContext(req.Context(), req.Method, u, req.Body)
 	return http.DefaultTransport.RoundTrip(out)
 }
+
+func TestCommentMentionWakes(t *testing.T) {
+	s, triggers := newServer(t)
+	s.Mention = func(b string) bool { return strings.Contains(b, "@Sandbox Agent") }
+	h := s.Handler()
+	now := time.Now().UnixMilli()
+	yes := fmt.Sprintf(`{"action":"create","type":"Comment","webhookTimestamp":%d,"data":{"body":"@Sandbox Agent rebase please"}}`, now)
+	no := fmt.Sprintf(`{"action":"create","type":"Comment","webhookTimestamp":%d,"data":{"body":"looks good"}}`, now)
+	if post(h, no, sign("s3cret", no), "c1"); *triggers != 0 {
+		t.Fatal("plain comment woke the worker")
+	}
+	if post(h, yes, sign("s3cret", yes), "c2"); *triggers != 1 {
+		t.Fatal("mention did not wake the worker")
+	}
+}

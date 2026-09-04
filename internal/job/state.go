@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -30,7 +31,9 @@ const StateFile = "state.json"
 
 // State is one job.
 type State struct {
-	ID       string     `json:"id"` // the job directory name, e.g. eng-750-20261113-124431
+	ID       string     `json:"id"`                // the job directory name, e.g. eng-750-20261113-124431
+	Kind     string     `json:"kind,omitempty"`    // "" for a new pull request, "update" for a follow-up
+	Comment  string     `json:"comment,omitempty"` // Linear comment that asked for the update
 	Issue    string     `json:"issue"`
 	Title    string     `json:"title"`
 	URL      string     `json:"url,omitempty"`
@@ -51,6 +54,56 @@ type State struct {
 type stateFile struct {
 	Version int     `json:"version"`
 	Jobs    []State `json:"jobs"`
+	// Mentions: comments created before Since are ignored (set on first run, so an old backlog
+	// is not replayed); Handled lists the comment IDs already taken, newest last.
+	Mentions struct {
+		Since   time.Time `json:"since"`
+		Handled []string  `json:"handled"`
+	} `json:"mentions"`
+}
+
+// MentionWatermark returns the time before which mentions are ignored, setting it to now the
+// first time.
+func MentionWatermark(root string) time.Time {
+	var t time.Time
+	_ = withState(root, true, func(sf *stateFile) error {
+		if sf.Mentions.Since.IsZero() {
+			sf.Mentions.Since = time.Now().UTC()
+		}
+		t = sf.Mentions.Since
+		return nil
+	})
+	return t
+}
+
+// ClaimMention records a comment as handled. It returns false if it already was.
+func ClaimMention(root, id string) bool {
+	claimed := false
+	_ = withState(root, true, func(sf *stateFile) error {
+		for _, h := range sf.Mentions.Handled {
+			if h == id {
+				return nil
+			}
+		}
+		sf.Mentions.Handled = append(sf.Mentions.Handled, id)
+		if n := len(sf.Mentions.Handled); n > 1000 {
+			sf.Mentions.Handled = sf.Mentions.Handled[n-1000:]
+		}
+		claimed = true
+		return nil
+	})
+	return claimed
+}
+
+// LastPR returns the pull request URL and model of the latest successful job for an issue.
+func LastPR(root, issue string) (pr, model string) {
+	jobs, _ := Jobs(root)
+	for _, j := range jobs {
+		if strings.EqualFold(j.Issue, issue) && j.PR != "" {
+			return j.PR, j.Model
+		}
+	}
+	return "", ""
 }
 
 // Terminal reports whether the job has finished, one way or another.
