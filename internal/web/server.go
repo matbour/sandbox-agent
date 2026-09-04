@@ -28,13 +28,13 @@ import (
 
 // Server is the HTTP side of agentd.
 type Server struct {
-	StateDir            string
+	StateDir string
 	// LinearWebhookSecrets are the signing secrets accepted (the workspace webhook and the OAuth
 	// application's webhook have one each). Empty: the Linear webhook route answers 404.
 	LinearWebhookSecrets [][]byte
-	Access              *Access // nil: only requests from the host itself reach the overview
-	Labels              func() []string
-	Mention             func(body string) bool // whether a comment mentions the agent
+	Access               *Access // nil: only requests from the host itself reach the overview
+	Labels               func() []string
+	Mention              func(body string) bool // whether a comment mentions the agent
 	// AgentSession receives Linear agent session events (mention, delegation, follow-up message).
 	// It must return quickly: Linear expects the webhook answer within 5 s.
 	AgentSession func(ev AgentSessionEvent)
