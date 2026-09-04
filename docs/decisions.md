@@ -198,3 +198,19 @@ Mentions are found by polling recent comments (the webhook only wakes the worker
 than the first run are ignored, handled comment IDs are kept in `state.json`, and the agent's own
 comments never trigger it. A model label written in the comment (`agent-opus`) overrides the
 model of the original job.
+
+## D25. Linear agent mode: mention or delegate the application (2026-11-13)
+
+The application token is requested with `app:mentionable` and `app:assignable` on top of
+`read,write` (client credentials accept them), so "Sandbox Agent" can be mentioned through the `@`
+menu or delegated an issue. Linear then opens an agent session and sends an `AgentSessionEvent`
+(`created`, or `prompted` for a follow-up message) to the OAuth application's webhook.
+
+`agentd` answers the webhook at once, stores the session in `state.json`, and posts a `thought`
+activity within the 10 s Linear allows. The worker then updates the issue's open agent pull request
+if there is one (D24), or opens a new one. Progress is shown as activities in the session (one
+thought per stage, then a `response` or an `error`), with links to the overview and the PR. The
+plain-text mention of D24 stays as a fallback; a comment that opened a session is not taken twice.
+`secrets/linear-webhook-secret` holds one secret per line, since the workspace webhook and the
+application's webhook are signed with different secrets. Raw session payloads are kept under
+`sessions/` in the state directory while the format is being learnt.

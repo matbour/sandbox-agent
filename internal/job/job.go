@@ -69,7 +69,6 @@ var unsafeName = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // Handle claims the issue (removes the trigger label), runs it, and reports on the issue.
 func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
-	log := r.Log.With("issue", is.Identifier)
 	var names, keep []string
 	for _, l := range is.Labels.Nodes {
 		names = append(names, l.Name)
@@ -79,10 +78,18 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	}
 	model, _ := r.Cfg.ModelFor(names)
 	if err := r.Linear.SetLabels(ctx, is.ID, keep); err != nil {
-		log.Error("cannot remove trigger label, skipping", "err", err)
+		r.Log.Error("cannot remove trigger label, skipping", "issue", is.Identifier, "err", err)
 		return
 	}
-	r.comment(ctx, is, fmt.Sprintf("%s: picked up, working on it with `%s`.", Marker, model))
+	r.NewPR(ctx, is, model, commentReporter{lc: r.Linear, log: r.Log, Issue: is.ID}, true)
+}
+
+// NewPR runs the issue and opens a draft pull request, reporting through rep. retryHint adds the
+// label instructions to a failure message.
+func (r *Runner) NewPR(ctx context.Context, is linear.Issue, model string, rep Reporter, retryHint bool) *Outcome {
+	log := r.Log.With("issue", is.Identifier)
+	ctx = withReporter(ctx, rep)
+	rep.Start(ctx, fmt.Sprintf("picked up, working on it with `%s`.", model))
 	log.Info("job started", "model", model)
 	start := time.Now()
 	out, err := r.Run(ctx, is, model)
@@ -103,28 +110,24 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	}
 	if err != nil {
 		log.Error("job failed", "err", err, "took", took)
-		msg := fmt.Sprintf("%s: failed after %s.\n\n```\n%s\n```", Marker, took, truncate(err.Error(), 3000))
+		msg := fmt.Sprintf("failed after %s.\n\n```\n%s\n```", took, truncate(err.Error(), 3000))
 		if out != nil && out.CostUSD > 0 {
 			msg += fmt.Sprintf("\n\nAgent cost: $%.2f, %d turns.", out.CostUSD, out.Turns)
 		}
-		msg += fmt.Sprintf("\n\nAdd the `%s` label again to retry", r.Cfg.TriggerLabel)
-		if retry, _ := r.Cfg.ModelFor([]string{r.Cfg.RetryLabel}); r.Cfg.RetryLabel != "" && retry != model {
-			msg += fmt.Sprintf(", or `%s` to retry with `%s`", r.Cfg.RetryLabel, retry)
+		if retryHint {
+			msg += fmt.Sprintf("\n\nAdd the `%s` label again to retry", r.Cfg.TriggerLabel)
+			if retry, _ := r.Cfg.ModelFor([]string{r.Cfg.RetryLabel}); r.Cfg.RetryLabel != "" && retry != model {
+				msg += fmt.Sprintf(", or `%s` to retry with `%s`", r.Cfg.RetryLabel, retry)
+			}
+			msg += ". Model labels: " + modelLabelList(r.Cfg) + "."
 		}
-		msg += ". Model labels: " + modelLabelList(r.Cfg) + "."
-		r.comment(ctx, is, msg)
-		return
+		rep.Fail(ctx, msg)
+		return out
 	}
 	log.Info("job done", "pr", out.PR.HTMLURL, "cost", out.CostUSD, "took", took)
-	msg := fmt.Sprintf("%s: draft pull request ready for review: %s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
-		Marker, out.PR.HTMLURL, took, model, out.CostUSD, out.Turns)
-	r.comment(ctx, is, msg)
-}
-
-func (r *Runner) comment(ctx context.Context, is linear.Issue, body string) {
-	if err := r.Linear.Comment(ctx, is.ID, body); err != nil {
-		r.Log.Warn("cannot comment on issue", "issue", is.Identifier, "err", err)
-	}
+	rep.Done(ctx, fmt.Sprintf("draft pull request ready for review: %s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
+		out.PR.HTMLURL, took, model, out.CostUSD, out.Turns))
+	return out
 }
 
 // Run does the work: clone, sandbox, agent, validate, push, draft PR.
@@ -140,8 +143,9 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 	out := &Outcome{Dir: dir}
 	update(dir, func(st *State) {
 		st.Issue, st.Title, st.URL, st.Model = is.Identifier, is.Title, is.URL, model
-		st.Stage, st.PID, st.Started = StageCloning, os.Getpid(), time.Now().UTC()
+		st.PID, st.Started = os.Getpid(), time.Now().UTC()
 	})
+	stage(ctx, dir, StageCloning)
 
 	owner, name, _ := strings.Cut(cfg.Repo, "/")
 	tok, err := r.App.InstallationToken(ctx, name)
@@ -174,7 +178,7 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 
 	// Commit, push a new branch, open a draft PR.
-	setStage(dir, StagePublishing)
+	stage(ctx, dir, StagePublishing)
 	title, body := ParseSummary(ex.agent.Result, is.Title)
 	msg := fmt.Sprintf("%s: %s\n\n%s\n", is.Identifier, title, is.URL)
 	if cfg.AuthorEmail != "" {
@@ -239,7 +243,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	is.Comments.Nodes = comments
 
 	// Sandbox.
-	setStage(dir, StageSetup)
+	stage(ctx, dir, StageSetup)
 	if err := sbx.EnsureDaemon(ctx, cfg.CPUs); err != nil {
 		return ex, err
 	}
@@ -276,7 +280,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	// Agent.
-	setStage(dir, StageAgent)
+	stage(ctx, dir, StageAgent)
 	prompt := Prompt(is, notes)
 	if prompter != nil {
 		prompt = prompter(notes)
@@ -308,7 +312,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	// Stage the workspace against the clean clone and validate the change set.
-	setStage(dir, StageValidating)
+	stage(ctx, dir, StageValidating)
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 	if _, err := g.Run(ctx, "add", "--all", "--", "."); err != nil {
 		return ex, err

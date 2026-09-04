@@ -21,6 +21,7 @@ type Config struct {
 	WebAddr        string // loopback address of the HTTP server; empty disables it
 	AccessTeam     string // Cloudflare Access team name, for the overview behind the tunnel
 	AccessAUD      string // Cloudflare Access application audience tag
+	OverviewURL    string // public URL of the overview, linked from Linear agent sessions
 	TriggerLabel   string
 	TeamKeys       []string // empty: all teams
 	PollInterval   time.Duration
@@ -179,6 +180,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		WebAddr:        get("WEB_ADDR", "127.0.0.1:8787"),
 		AccessTeam:     get("ACCESS_TEAM", ""),
 		AccessAUD:      get("ACCESS_AUD", ""),
+		OverviewURL:    get("OVERVIEW_URL", ""),
 		TriggerLabel:   get("TRIGGER_LABEL", "agent"),
 		TeamKeys:       list(get("LINEAR_TEAMS", "")),
 		GitHubAppID:    get("GITHUB_APP_ID", ""),

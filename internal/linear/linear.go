@@ -34,12 +34,17 @@ type Client struct {
 type appToken struct {
 	Value   string    `json:"access_token"`
 	Expires time.Time `json:"expires"`
+	Scopes  string    `json:"scopes"`
 }
 
 // New returns a client authenticated with a personal API key.
 func New(apiKey string) *Client {
 	return &Client{APIKey: apiKey, HTTP: &http.Client{Timeout: 30 * time.Second}}
 }
+
+// AppScopes are requested for the application token: read and write, plus agent mode (the app
+// can be mentioned and delegated issues, which opens agent sessions).
+const AppScopes = "read,write,app:assignable,app:mentionable"
 
 // NewApp returns a client authenticated as an OAuth application with client credentials.
 func NewApp(clientID, clientSecret, tokenPath string) *Client {
@@ -62,7 +67,7 @@ func (c *Client) auth(ctx context.Context, fresh bool) (string, error) {
 	if c.token == nil && !fresh && c.TokenPath != "" {
 		if b, err := os.ReadFile(c.TokenPath); err == nil {
 			var t appToken
-			if json.Unmarshal(b, &t) == nil && t.Value != "" {
+			if json.Unmarshal(b, &t) == nil && t.Value != "" && t.Scopes == AppScopes {
 				c.token = &t
 			}
 		}
@@ -87,7 +92,7 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 		"grant_type":    {"client_credentials"},
 		"client_id":     {c.ClientID},
 		"client_secret": {c.ClientSecret},
-		"scope":         {"read,write"},
+		"scope":         {AppScopes},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -110,7 +115,8 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 	if out.ExpiresIn <= 0 {
 		out.ExpiresIn = 30 * 24 * 3600
 	}
-	return &appToken{Value: out.AccessToken, Expires: time.Now().Add(time.Duration(out.ExpiresIn) * time.Second)}, nil
+	return &appToken{Value: out.AccessToken, Scopes: AppScopes,
+		Expires: time.Now().Add(time.Duration(out.ExpiresIn) * time.Second)}, nil
 }
 
 // Label is an issue label.
@@ -303,4 +309,31 @@ func (c *Client) CommentsSince(ctx context.Context, since time.Time, text string
 func (c *Client) Reply(ctx context.Context, issueID, parentID, body string) error {
 	q := `mutation($i: CommentCreateInput!) { commentCreate(input: $i) { success } }`
 	return c.do(ctx, q, map[string]any{"i": map[string]any{"issueId": issueID, "parentId": parentID, "body": body}}, nil)
+}
+
+// IssueByID returns an issue with the fields the worker uses.
+func (c *Client) IssueByID(ctx context.Context, id string) (*Issue, error) {
+	var out struct {
+		Issue *Issue `json:"issue"`
+	}
+	err := c.do(ctx, `query($id: String!) { issue(id: $id) { `+issueFields+` } }`, map[string]any{"id": id}, &out)
+	if err == nil && out.Issue == nil {
+		err = fmt.Errorf("linear: issue %s not found", id)
+	}
+	return out.Issue, err
+}
+
+// AgentActivity posts an activity in an agent session: kind is thought, response, error or
+// elicitation. See https://linear.app/developers/agent-interaction.
+func (c *Client) AgentActivity(ctx context.Context, session, kind, body string) error {
+	q := `mutation($i: AgentActivityCreateInput!) { agentActivityCreate(input: $i) { success } }`
+	return c.do(ctx, q, map[string]any{"i": map[string]any{
+		"agentSessionId": session, "content": map[string]any{"type": kind, "body": body}}}, nil)
+}
+
+// AgentSessionLink sets the session's external link (shown in Linear), e.g. the pull request.
+func (c *Client) AgentSessionLink(ctx context.Context, session, label, url string) error {
+	q := `mutation($id: String!, $i: AgentSessionUpdateInput!) { agentSessionUpdate(id: $id, input: $i) { success } }`
+	return c.do(ctx, q, map[string]any{"id": session, "i": map[string]any{
+		"addedExternalUrls": []map[string]string{{"label": label, "url": url}}}}, nil)
 }

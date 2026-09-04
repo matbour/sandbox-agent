@@ -24,37 +24,43 @@ func MentionPattern(name string) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)@\s*` + strings.Join(words, `[\s_-]*`) + `\b`)
 }
 
-// HandleMention updates the pull request of the comment's issue: it merges the latest base branch,
-// runs the agent with the comment, the PR feedback and the failed checks, and pushes the result
-// to the same branch. It reports in the comment's thread and on the pull request.
+// HandleMention updates the pull request of the comment's issue, replying in the comment's thread.
 func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
-	is := *c.Issue
-	log := r.Log.With("issue", is.Identifier, "comment", c.ID)
-	reply := func(body string) {
-		if err := r.Linear.Reply(ctx, is.ID, c.ID, body); err != nil {
-			log.Warn("cannot reply on issue", "err", err)
-		}
+	requester := "someone"
+	if c.User != nil {
+		requester = c.User.Name
 	}
+	rep := commentReporter{lc: r.Linear, log: r.Log, Issue: c.Issue.ID, Parent: c.ID}
+	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep) {
+		rep.Done(ctx, fmt.Sprintf("I have not opened a pull request for this issue yet. Add the `%s` label to start one.",
+			r.Cfg.TriggerLabel))
+	}
+}
+
+// UpdatePR merges the latest base branch into the issue's agent pull request, runs the agent with
+// the request, the PR feedback and the failed checks, and pushes to the same branch. Without a
+// pull request it says so and returns false.
+func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, request, ref string, rep Reporter) bool {
+	log := r.Log.With("issue", is.Identifier)
+	ctx = withReporter(ctx, rep)
 	prURL, model := LastPR(r.Cfg.StateDir, is.Identifier)
 	if prURL == "" {
-		reply(fmt.Sprintf("%s: I have not opened a pull request for this issue yet. Add the `%s` label to start one.",
-			Marker, r.Cfg.TriggerLabel))
-		return
+		return false
 	}
 	var words []string
-	for _, w := range strings.Fields(c.Body) {
+	for _, w := range strings.Fields(request) {
 		words = append(words, strings.Trim(w, "`.,;:!?()[]"))
 	}
 	if m, ok := r.Cfg.ModelFor(words); ok {
-		model = m // an explicit model label in the comment wins
+		model = m // an explicit model label in the request wins
 	}
 	if model == "" {
 		model = r.Cfg.AgentModel
 	}
-	reply(fmt.Sprintf("%s: on it, updating %s with `%s` (latest `main` merged first).", Marker, prURL, model))
+	rep.Start(ctx, fmt.Sprintf("on it, updating %s with `%s` (latest `main` merged first).", prURL, model))
 	log.Info("update started", "pr", prURL, "model", model)
 	start := time.Now()
-	out, err := r.followUp(ctx, is, c, prURL, model)
+	out, err := r.followUp(ctx, is, requester, request, ref, prURL, model)
 	took := time.Since(start).Round(time.Second)
 	if out != nil {
 		_ = os.RemoveAll(filepath.Join(out.Dir, "repo"))
@@ -70,16 +76,17 @@ func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
 	}
 	if err != nil {
 		log.Error("update failed", "err", err, "took", took)
-		msg := fmt.Sprintf("%s: update failed after %s.\n\n```\n%s\n```", Marker, took, truncate(err.Error(), 3000))
+		msg := fmt.Sprintf("update failed after %s.\n\n```\n%s\n```", took, truncate(err.Error(), 3000))
 		if out != nil && out.CostUSD > 0 {
 			msg += fmt.Sprintf("\n\nAgent cost: $%.2f, %d turns.", out.CostUSD, out.Turns)
 		}
-		reply(msg + "\n\nMention me again to retry.")
-		return
+		rep.Fail(ctx, msg+"\n\nMention me again to retry.")
+		return true
 	}
 	log.Info("update done", "pr", prURL, "cost", out.CostUSD, "took", took)
-	reply(fmt.Sprintf("%s: %s\n\n%s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
-		Marker, out.Summary, prURL, took, model, out.CostUSD, out.Turns))
+	rep.Done(ctx, fmt.Sprintf("%s\n\n%s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
+		out.Summary, prURL, took, model, out.CostUSD, out.Turns))
+	return true
 }
 
 // UpdateOutcome is what an update produced.
@@ -88,7 +95,7 @@ type UpdateOutcome struct {
 	Summary string // one line for the Linear reply
 }
 
-func (r *Runner) followUp(ctx context.Context, is linear.Issue, c linear.Comment, prURL, model string) (*UpdateOutcome, error) {
+func (r *Runner) followUp(ctx context.Context, is linear.Issue, requester, request, ref, prURL, model string) (*UpdateOutcome, error) {
 	cfg := r.Cfg
 	stamp := time.Now().UTC().Format("20060102-150405")
 	slug := strings.Trim(unsafeName.ReplaceAllString(strings.ToLower(is.Identifier), "-"), "-")
@@ -100,9 +107,10 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, c linear.Comment
 	out := &UpdateOutcome{Outcome: Outcome{Dir: dir}}
 	update(dir, func(st *State) {
 		st.Issue, st.Title, st.URL, st.Model = is.Identifier, "update: "+is.Title, is.URL, model
-		st.Kind, st.Comment = "update", c.ID
-		st.Stage, st.PID, st.Started = StageCloning, os.Getpid(), time.Now().UTC()
+		st.Kind, st.Comment = "update", ref
+		st.PID, st.Started = os.Getpid(), time.Now().UTC()
 	})
+	stage(ctx, dir, StageCloning)
 
 	n, ok := github.PRNumber(prURL)
 	if !ok {
@@ -154,12 +162,8 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, c linear.Comment
 		return out, err
 	}
 
-	requester := "someone"
-	if c.User != nil {
-		requester = c.User.Name
-	}
 	prompter := func(notes string) string {
-		return UpdatePrompt(is, requester, c.Body, pr, feedback, checks, conflicts, notes)
+		return UpdatePrompt(is, requester, request, pr, feedback, checks, conflicts, notes)
 	}
 	ex, err := r.execute(ctx, is, model, dir, repoDir, ws, slug, stamp, prompter, true)
 	if ex != nil {
@@ -174,7 +178,7 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, c linear.Comment
 
 	// Commit: resolutions amend the local merge commit (markers never reach the branch); other
 	// changes go in their own commit on top.
-	setStage(dir, StagePublishing)
+	stage(ctx, dir, StagePublishing)
 	title, body := ParseSummary(ex.agent.Result, "Address feedback")
 	gw := &gitops.Git{Dir: repoDir, WorkTree: ws, Env: r.authorEnv()}
 	trailer := ""
@@ -216,7 +220,7 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, c linear.Comment
 	}
 	out.Summary = "updated the pull request: " + strings.Join(did, "; ") + "."
 	prMsg := fmt.Sprintf("Update requested by %s in [%s](%s):\n\n%s\n\n%s", requester, is.Identifier, is.URL,
-		quote(c.Body), body)
+		quote(request), body)
 	if len(ex.Warnings) > 0 {
 		prMsg += "\n\n### Review carefully\n\n- " + strings.Join(ex.Warnings, "\n- ")
 	}

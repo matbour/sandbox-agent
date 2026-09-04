@@ -30,7 +30,7 @@ func sign(secret, body string) string {
 func newServer(t *testing.T) (*Server, *int) {
 	triggers := 0
 	return &Server{
-		StateDir: t.TempDir(), LinearWebhookSecret: []byte("s3cret"),
+		StateDir: t.TempDir(), LinearWebhookSecrets: [][]byte{[]byte("other"), []byte("s3cret")},
 		Labels:  func() []string { return []string{"agent", "agent-opus"} },
 		Trigger: func() { triggers++ },
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -73,7 +73,7 @@ func TestLinearWebhook(t *testing.T) {
 	if c := post(h, other, sign("s3cret", other), "d3"); c != http.StatusOK || *triggers != 1 {
 		t.Fatalf("unrelated label must not trigger: %d, triggers %d", c, *triggers)
 	}
-	s.LinearWebhookSecret = nil
+	s.LinearWebhookSecrets = nil
 	if c := post(s.Handler(), body, sign("s3cret", body), "d4"); c != http.StatusNotFound {
 		t.Fatalf("disabled webhook: %d", c)
 	}
@@ -181,5 +181,31 @@ func TestCommentMentionWakes(t *testing.T) {
 	}
 	if post(h, yes, sign("s3cret", yes), "c2"); *triggers != 1 {
 		t.Fatal("mention did not wake the worker")
+	}
+}
+
+func TestAgentSessionWebhook(t *testing.T) {
+	s, _ := newServer(t)
+	var got []AgentSessionEvent
+	s.AgentSession = func(ev AgentSessionEvent) { got = append(got, ev) }
+	h := s.Handler()
+	now := time.Now().UnixMilli()
+	created := `{"type":"AgentSessionEvent","action":"created","agentSession":{"id":"s1","issue":{"id":"i1","identifier":"ENG-1"},"comment":{"id":"c1","body":"@Sandbox Agent fix it"},"creator":{"name":"Mathieu"}}}`
+	r := httptest.NewRequest(http.MethodPost, "/webhooks/linear", strings.NewReader(created))
+	r.Header.Set("Linear-Signature", sign("s3cret", created))
+	r.Header.Set("Linear-Timestamp", fmt.Sprint(now)) // no webhookTimestamp in the body
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || len(got) != 1 {
+		t.Fatalf("created: %d %d", w.Code, len(got))
+	}
+	ev := got[0]
+	if ev.SessionID != "s1" || ev.IssueID != "i1" || ev.Issue != "ENG-1" || ev.CommentID != "c1" ||
+		ev.Request != "@Sandbox Agent fix it" || ev.Requester != "Mathieu" {
+		t.Fatalf("parsed %+v", ev)
+	}
+	prompted := fmt.Sprintf(`{"type":"AgentSessionEvent","action":"prompted","webhookTimestamp":%d,"agentSession":{"id":"s1","issue":{"id":"i1","identifier":"ENG-1"}},"agentActivity":{"body":"also the tests","user":{"name":"Mathieu"}}}`, now)
+	if c := post(h, prompted, sign("s3cret", prompted), "p1"); c != http.StatusOK || len(got) != 2 || got[1].Request != "also the tests" {
+		t.Fatalf("prompted: %d %+v", c, got)
 	}
 }

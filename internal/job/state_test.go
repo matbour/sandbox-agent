@@ -79,3 +79,20 @@ func TestConcurrentUpdates(t *testing.T) {
 		t.Fatalf("lost updates: %d jobs", len(jobs))
 	}
 }
+
+func TestSessionQueue(t *testing.T) {
+	root := t.TempDir()
+	EnqueueSession(root, Session{ID: "s1", Action: "created", CommentID: "c1"})
+	EnqueueSession(root, Session{ID: "s1", Action: "created", CommentID: "c1"}) // duplicate delivery
+	EnqueueSession(root, Session{ID: "s1", Action: "prompted", Request: "more"})
+	if !MentionHandled(root, "c1") {
+		t.Fatal("session comment not marked as handled")
+	}
+	got := TakeSessions(root)
+	if len(got) != 2 || got[0].Action != "created" || got[1].Request != "more" {
+		t.Fatalf("got %+v", got)
+	}
+	if len(TakeSessions(root)) != 0 {
+		t.Fatal("sessions not removed")
+	}
+}

@@ -121,11 +121,29 @@ func main() {
 	}
 	mentioned := func(body string) bool { return mention != nil && mention.MatchString(body) }
 
+	overviewURL := cfg.OverviewURL
 	wake := make(chan struct{}, 1)
 	if cfg.WebAddr != "" {
 		srv := &web.Server{
-			StateDir: cfg.StateDir, LinearWebhookSecret: []byte(cfg.LinearHookKey),
+			StateDir: cfg.StateDir, LinearWebhookSecrets: secretLines(cfg.LinearHookKey),
 			Labels: cfg.Labels, Mention: mentioned, Log: log,
+			AgentSession: func(ev web.AgentSessionEvent) {
+				dir := filepath.Join(cfg.StateDir, "sessions")
+				if os.MkdirAll(dir, 0o700) == nil {
+					_ = os.WriteFile(filepath.Join(dir, ev.SessionID+"-"+ev.Action+".json"), ev.Raw, 0o600)
+				}
+				job.EnqueueSession(cfg.StateDir, job.Session{ID: ev.SessionID, Action: ev.Action,
+					IssueID: ev.IssueID, Issue: ev.Issue, CommentID: ev.CommentID, Request: ev.Request,
+					Requester: ev.Requester, Received: time.Now().UTC()})
+				// Linear marks a session unresponsive without an activity within 10 s.
+				go func() {
+					actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 8*time.Second)
+					defer cancel()
+					if err := r.Linear.AgentActivity(actx, ev.SessionID, "thought", "Received. Queued for the sandbox."); err != nil {
+						log.Warn("cannot acknowledge agent session", "session", ev.SessionID, "err", err)
+					}
+				}()
+			},
 			Trigger: func() {
 				select {
 				case wake <- struct{}{}:
@@ -165,6 +183,14 @@ func main() {
 			}
 			r.Handle(context.WithoutCancel(ctx), is)
 		}
+		for _, sess := range job.TakeSessions(cfg.StateDir) {
+			if ctx.Err() != nil {
+				job.EnqueueSession(cfg.StateDir, sess) // keep it for the next start
+				continue
+			}
+			log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
+			r.HandleSession(context.WithoutCancel(ctx), sess, overviewURL)
+		}
 		if mention != nil && ctx.Err() == nil {
 			since := job.MentionWatermark(cfg.StateDir)
 			if recent := time.Now().Add(-6 * time.Hour); since.Before(recent) {
@@ -176,6 +202,11 @@ func main() {
 				log.Error("poll Linear comments", "err", err)
 			}
 			for _, c := range comments {
+				// A real mention also opens an agent session, handled above: give its webhook a
+				// minute to arrive before treating the comment as a plain-text mention.
+				if time.Since(c.CreatedAt) < time.Minute || job.MentionHandled(cfg.StateDir, c.ID) {
+					continue
+				}
 				if ctx.Err() != nil || c.Issue == nil || (c.User != nil && c.User.ID == meID) ||
 					!mentioned(c.Body) || !job.ClaimMention(cfg.StateDir, c.ID) {
 					continue
@@ -248,4 +279,15 @@ func defaultSecrets() string {
 		return "secrets"
 	}
 	return filepath.Join(filepath.Dir(filepath.Dir(exe)), "secrets")
+}
+
+// secretLines splits a secrets file holding one secret per line.
+func secretLines(s string) [][]byte {
+	var out [][]byte
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, []byte(l))
+		}
+	}
+	return out
 }

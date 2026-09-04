@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,12 +29,17 @@ import (
 // Server is the HTTP side of agentd.
 type Server struct {
 	StateDir            string
-	LinearWebhookSecret []byte  // empty: the Linear webhook route answers 404
+	// LinearWebhookSecrets are the signing secrets accepted (the workspace webhook and the OAuth
+	// application's webhook have one each). Empty: the Linear webhook route answers 404.
+	LinearWebhookSecrets [][]byte
 	Access              *Access // nil: only requests from the host itself reach the overview
 	Labels              func() []string
 	Mention             func(body string) bool // whether a comment mentions the agent
-	Trigger             func()                 // asks the worker to poll Linear now
-	Log                 *slog.Logger
+	// AgentSession receives Linear agent session events (mention, delegation, follow-up message).
+	// It must return quickly: Linear expects the webhook answer within 5 s.
+	AgentSession func(ev AgentSessionEvent)
+	Trigger      func() // asks the worker to poll Linear now
+	Log          *slog.Logger
 
 	mu   sync.Mutex
 	seen map[string]time.Time
@@ -98,7 +104,7 @@ func (s *Server) people(next http.Handler) http.Handler {
 // linearWebhook verifies a Linear delivery and wakes the worker when an issue may need it.
 // See https://linear.app/developers/webhooks.
 func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
-	if len(s.LinearWebhookSecret) == 0 {
+	if len(s.LinearWebhookSecrets) == 0 {
 		http.NotFound(w, r)
 		return
 	}
@@ -107,7 +113,7 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	if !validSignature(s.LinearWebhookSecret, body, r.Header.Get("Linear-Signature")) {
+	if !s.signed(body, r.Header.Get("Linear-Signature")) {
 		s.Log.Warn("linear webhook: bad signature", "remote", r.Header.Get("Cf-Connecting-Ip"))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -122,6 +128,9 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad payload", http.StatusBadRequest)
 		return
 	}
+	if p.Timestamp == 0 { // not every payload type carries it; the header always does
+		p.Timestamp, _ = strconv.ParseInt(r.Header.Get("Linear-Timestamp"), 10, 64)
+	}
 	now := s.clock()
 	if d := now.Sub(time.UnixMilli(p.Timestamp)); d > time.Minute || d < -time.Minute {
 		s.Log.Warn("linear webhook: stale timestamp", "age", d)
@@ -133,6 +142,14 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case p.Type == "AgentSessionEvent" && s.AgentSession != nil:
+		ev, err := parseAgentSession(body)
+		if err != nil {
+			s.Log.Warn("linear webhook: bad agent session event", "err", err)
+			break
+		}
+		s.Log.Info("linear webhook: agent session", "action", ev.Action, "session", ev.SessionID, "issue", ev.Issue)
+		s.AgentSession(ev)
 	case p.Type == "Issue" && p.Action != "remove" && s.mentionsLabel(p.Data) && s.Trigger != nil:
 		s.Log.Info("linear webhook: issue event, polling now", "action", p.Action)
 		s.Trigger()
@@ -146,6 +163,15 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) signed(body []byte, header string) bool {
+	for _, secret := range s.LinearWebhookSecrets {
+		if validSignature(secret, body, header) {
+			return true
+		}
+	}
+	return false
 }
 
 func validSignature(secret, body []byte, header string) bool {
@@ -218,4 +244,69 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// AgentSessionEvent is the part of a Linear AgentSessionEvent webhook the worker uses.
+type AgentSessionEvent struct {
+	Action    string // created or prompted
+	SessionID string
+	IssueID   string
+	Issue     string // identifier
+	CommentID string
+	Request   string // the mention comment, or the follow-up message
+	Requester string
+	Raw       []byte
+}
+
+func parseAgentSession(body []byte) (AgentSessionEvent, error) {
+	var p struct {
+		Action       string `json:"action"`
+		AgentSession struct {
+			ID    string `json:"id"`
+			Issue *struct {
+				ID         string `json:"id"`
+				Identifier string `json:"identifier"`
+			} `json:"issue"`
+			Comment *struct {
+				ID   string `json:"id"`
+				Body string `json:"body"`
+			} `json:"comment"`
+			Creator *struct {
+				Name string `json:"name"`
+			} `json:"creator"`
+		} `json:"agentSession"`
+		AgentActivity *struct {
+			Body    string `json:"body"`
+			Content struct {
+				Body string `json:"body"`
+			} `json:"content"`
+			User *struct {
+				Name string `json:"name"`
+			} `json:"user"`
+		} `json:"agentActivity"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		return AgentSessionEvent{}, err
+	}
+	if p.AgentSession.ID == "" || p.AgentSession.Issue == nil {
+		return AgentSessionEvent{}, errors.New("no session or issue")
+	}
+	ev := AgentSessionEvent{Action: p.Action, SessionID: p.AgentSession.ID, IssueID: p.AgentSession.Issue.ID,
+		Issue: p.AgentSession.Issue.Identifier, Raw: body}
+	if c := p.AgentSession.Comment; c != nil {
+		ev.CommentID, ev.Request = c.ID, c.Body
+	}
+	if cr := p.AgentSession.Creator; cr != nil {
+		ev.Requester = cr.Name
+	}
+	if a := p.AgentActivity; p.Action == "prompted" && a != nil {
+		ev.Request = a.Body
+		if ev.Request == "" {
+			ev.Request = a.Content.Body
+		}
+		if a.User != nil {
+			ev.Requester = a.User.Name
+		}
+	}
+	return ev, nil
 }
