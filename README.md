@@ -50,6 +50,9 @@ Sandboxes microVM, and opens a draft pull request. Setup:
 4. `bin/agentd -once` runs what is labelled now; without `-once` it keeps polling. A systemd user
    unit is in `deploy/systemd/`.
 
+In Linear, **mention** the agent with a question to get research notes (it reads the code and
+the docs, changes nothing), and **assign** (delegate) the issue to it to have it implemented.
+
 To update a pull request opened by the agent, mention it in a comment on the Linear issue
 (`@Sandbox Agent please also handle the empty state`): it merges the latest `main`, reads your
 comment, the PR reviews and the failed checks, and pushes to the same branch.

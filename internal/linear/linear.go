@@ -137,6 +137,7 @@ type Issue struct {
 	} `json:"team"`
 	Creator  *Person `json:"creator"`
 	Assignee *Person `json:"assignee"`
+	Delegate *Person `json:"delegate"` // an agent the issue is delegated to
 	Labels   struct {
 		Nodes []Label `json:"nodes"`
 	} `json:"labels"`
@@ -204,7 +205,7 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	return nil
 }
 
-const issueFields = `id identifier title description url team { key } creator { id name } assignee { id name }
+const issueFields = `id identifier title description url team { key } creator { id name } assignee { id name } delegate { id name }
 labels { nodes { id name } }
 comments(first: 50) { nodes { body user { name } } }`
 

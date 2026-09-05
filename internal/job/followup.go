@@ -36,8 +36,7 @@ func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
 		owner = c.User.ID
 	}
 	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep, owner) {
-		rep.Done(ctx, fmt.Sprintf("I have not opened a pull request for this issue yet. Add the `%s` label to start one.",
-			r.Cfg.TriggerLabel))
+		r.Research(ctx, *c.Issue, requester, c.Body, rep)
 	}
 }
 
@@ -184,7 +183,7 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, requester, reque
 	prompter := func(notes string) string {
 		return UpdatePrompt(is, requester, request, pr, feedback, checks, conflicts, notes)
 	}
-	ex, err := r.execute(ctx, is, model, dir, repoDir, ws, slug, stamp, prompter, true)
+	ex, err := r.execute(ctx, is, model, dir, repoDir, ws, slug, stamp, execOpts{prompter: prompter, allowEmpty: true})
 	if ex != nil {
 		out.CostUSD, out.Turns, out.Warnings = ex.CostUSD, ex.Turns, ex.Warnings
 	}

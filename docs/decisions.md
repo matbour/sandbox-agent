@@ -234,3 +234,20 @@ status counts as not ready. After pushing, `agentd`:
 The worker waits for checks inline, so jobs queue behind it; acceptable at the current volume.
 Check logs (Vercel in particular) are not readable with the App's permissions: a fix pass gets
 the check names and summaries and must reproduce the failure in the sandbox.
+
+## D27. Mention to ask, delegate to do (2026-11-13)
+
+Linear opens an agent session both when the agent is mentioned and when an issue is delegated to
+it (with an automatic comment, "This thread is for an agent session with …"); the issue's
+`delegate` field tells them apart. Routing:
+
+- An open agent pull request on the issue: update it (D24, D26), whatever the trigger.
+- Delegated, no pull request: open one (D26).
+- Mentioned or messaged, no pull request: research. The agent reads the code, and the web when
+  the answer depends on outside facts, in a sandbox without the setup script; its changes are
+  discarded. The answer is posted as notes in the session, saved in the job directory, and given
+  as context to later runs on the same issue (for example when the person then delegates it).
+
+Webhook events other than issues with an agent label, comments mentioning the agent, and agent
+sessions are verified and ignored. Not handled yet: the session's stop signal, undelegation
+during a job, permission changes and the application's revocation.

@@ -189,7 +189,7 @@ func main() {
 				continue
 			}
 			log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
-			r.HandleSession(context.WithoutCancel(ctx), sess, overviewURL)
+			r.HandleSession(context.WithoutCancel(ctx), sess, overviewURL, meID)
 		}
 		if mention != nil && ctx.Err() == nil {
 			since := job.MentionWatermark(cfg.StateDir)
