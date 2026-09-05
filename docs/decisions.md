@@ -251,3 +251,13 @@ it (with an automatic comment, "This thread is for an agent session with …"); 
 Webhook events other than issues with an agent label, comments mentioning the agent, and agent
 sessions are verified and ignored. Not handled yet: the session's stop signal, undelegation
 during a job, permission changes and the application's revocation.
+
+## D28. Stop signal, and "no changes" is a decision, not a failure (2026-11-13)
+
+- Linear's Stop button arrives as a `prompted` event with `agentActivity.signal = "stop"` (and the
+  text "stop" as content). It cancels the session's running job (the agent and its sandbox stop,
+  nothing is pushed), drops its queued events, and answers "Stopped." Before this, "stop" was
+  taken as a new request and started a job.
+- A delegated job where the agent changes nothing (for example the content lives in a CMS, not in
+  the repository) now ends as "needs a decision": the agent's explanation is posted as a question
+  and the issue is assigned back, instead of a failure.

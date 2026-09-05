@@ -120,6 +120,30 @@ func (r *Runner) NewPR(ctx context.Context, is linear.Issue, model string, rep R
 			}
 		})
 	}
+	if err != nil && ctx.Err() != nil { // stopped from Linear: already answered there
+		if out != nil {
+			update(out.Dir, func(st *State) { st.Stage, st.Error = StageFailed, "stopped from Linear" })
+		}
+		log.Info("job stopped", "took", took)
+		return out
+	}
+	var none *NoChangesError
+	if errors.As(err, &none) {
+		_, text := ParseDecision(none.Message)
+		title, body := ParseSummary(text, "")
+		msg := "**Needs a decision**: I made no changes. " + strings.TrimSpace(title+"\n\n"+body)
+		if owner != "" {
+			if aerr := r.Linear.Assign(ctx, is.ID, owner); aerr == nil {
+				msg += "\n\nI assigned the issue back to you."
+			}
+		}
+		if out != nil {
+			update(out.Dir, func(st *State) { st.Stage, st.Error, st.Result = StageDone, "", "needs a decision" })
+		}
+		log.Info("job ended without changes", "took", took)
+		rep.Ask(ctx, fmt.Sprintf("%s\n\nTook %s, `%s`, agent cost $%.2f.", msg, took, model, out.CostUSD))
+		return out
+	}
 	if err != nil {
 		log.Error("job failed", "err", err, "took", took)
 		msg := fmt.Sprintf("failed after %s.\n\n```\n%s\n```", took, truncate(err.Error(), 3000))
@@ -226,6 +250,14 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 	_ = os.RemoveAll(repoDir)
 	_ = os.RemoveAll(ws)
 	return out, nil
+}
+
+// NoChangesError is returned when the agent ends without changing anything: it usually explains
+// why (the change is not in this repository, the issue is unclear), which needs a person.
+type NoChangesError struct{ Message string }
+
+func (e *NoChangesError) Error() string {
+	return "the agent made no changes. Its last message:\n\n" + truncate(e.Message, 2500)
 }
 
 // Execution is the result of running the agent on a prepared workspace.
@@ -374,7 +406,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	ex.Changed = len(changes)
 	if !v.OK() {
 		if len(changes) == 0 {
-			return ex, fmt.Errorf("the agent made no changes. Its last message:\n\n%s", truncate(res.Result, 2500))
+			return ex, &NoChangesError{Message: res.Result}
 		}
 		return ex, fmt.Errorf("patch rejected:\n- %s", strings.Join(v.Rejections, "\n- "))
 	}

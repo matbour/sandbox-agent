@@ -1,6 +1,7 @@
 package job
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,5 +95,22 @@ func TestSessionQueue(t *testing.T) {
 	}
 	if len(TakeSessions(root)) != 0 {
 		t.Fatal("sessions not removed")
+	}
+}
+
+func TestStopSessionAndDrop(t *testing.T) {
+	root := t.TempDir()
+	EnqueueSession(root, Session{ID: "s1", Action: "prompted", Request: "a"})
+	EnqueueSession(root, Session{ID: "s2", Action: "created"})
+	if n := DropSessions(root, "s1"); n != 1 {
+		t.Fatalf("dropped %d", n)
+	}
+	if got := TakeSessions(root); len(got) != 1 || got[0].ID != "s2" {
+		t.Fatalf("left %+v", got)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	running.Store("s3", cancel)
+	if !StopSession("s3") || ctx.Err() == nil || StopSession("s3") {
+		t.Fatal("StopSession did not cancel exactly once")
 	}
 }

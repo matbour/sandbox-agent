@@ -325,3 +325,21 @@ func MentionHandled(root, id string) bool {
 	})
 	return found
 }
+
+// DropSessions removes waiting events of a session, e.g. after a stop signal.
+func DropSessions(root, id string) int {
+	n := 0
+	_ = withState(root, true, func(sf *stateFile) error {
+		keep := sf.Sessions[:0]
+		for _, s := range sf.Sessions {
+			if s.ID == id {
+				n++
+				continue
+			}
+			keep = append(keep, s)
+		}
+		sf.Sessions = keep
+		return nil
+	})
+	return n
+}

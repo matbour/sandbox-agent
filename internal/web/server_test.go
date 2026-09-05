@@ -209,3 +209,13 @@ func TestAgentSessionWebhook(t *testing.T) {
 		t.Fatalf("prompted: %d %+v", c, got)
 	}
 }
+
+func TestAgentSessionStopSignal(t *testing.T) {
+	s, _ := newServer(t)
+	var got []AgentSessionEvent
+	s.AgentSession = func(ev AgentSessionEvent) { got = append(got, ev) }
+	body := fmt.Sprintf(`{"type":"AgentSessionEvent","action":"prompted","webhookTimestamp":%d,"agentSession":{"id":"s1","issue":{"id":"i1","identifier":"ENG-1"}},"agentActivity":{"signal":"stop","content":{"type":"prompt","body":"stop"}}}`, time.Now().UnixMilli())
+	if c := post(s.Handler(), body, sign("s3cret", body), "x1"); c != http.StatusOK || len(got) != 1 || got[0].Signal != "stop" || got[0].Request != "stop" {
+		t.Fatalf("%d %+v", c, got)
+	}
+}

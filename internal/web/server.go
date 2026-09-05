@@ -256,6 +256,7 @@ type AgentSessionEvent struct {
 	Request     string // the mention comment, or the follow-up message
 	Requester   string
 	RequesterID string
+	Signal      string // "stop" when the person pressed Stop in the session
 	Raw         []byte
 }
 
@@ -278,6 +279,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 			} `json:"creator"`
 		} `json:"agentSession"`
 		AgentActivity *struct {
+			Signal  string `json:"signal"`
 			Body    string `json:"body"`
 			Content struct {
 				Body string `json:"body"`
@@ -303,6 +305,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 		ev.Requester, ev.RequesterID = cr.Name, cr.ID
 	}
 	if a := p.AgentActivity; p.Action == "prompted" && a != nil {
+		ev.Signal = a.Signal
 		ev.Request = a.Body
 		if ev.Request == "" {
 			ev.Request = a.Content.Body

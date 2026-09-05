@@ -132,6 +132,17 @@ func main() {
 				if os.MkdirAll(dir, 0o700) == nil {
 					_ = os.WriteFile(filepath.Join(dir, ev.SessionID+"-"+ev.Action+".json"), ev.Raw, 0o600)
 				}
+				if ev.Signal == "stop" {
+					stopped := job.StopSession(ev.SessionID)
+					dropped := job.DropSessions(cfg.StateDir, ev.SessionID)
+					log.Info("agent session stopped", "session", ev.SessionID, "job_cancelled", stopped, "queued_dropped", dropped)
+					go func() {
+						actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 8*time.Second)
+						defer cancel()
+						_ = r.Linear.AgentActivity(actx, ev.SessionID, "response", "Stopped. Nothing was pushed.")
+					}()
+					return
+				}
 				job.EnqueueSession(cfg.StateDir, job.Session{ID: ev.SessionID, Action: ev.Action,
 					IssueID: ev.IssueID, Issue: ev.Issue, CommentID: ev.CommentID, Request: ev.Request,
 					Requester: ev.Requester, RequesterID: ev.RequesterID, Received: time.Now().UTC()})

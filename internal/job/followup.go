@@ -64,6 +64,10 @@ func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, reque
 	log.Info("update started", "pr", prURL, "model", model)
 	start := time.Now()
 	out, err := r.runUpdate(ctx, is, requester, request, ref, prURL, model)
+	if err != nil && ctx.Err() != nil { // stopped from Linear: already answered there
+		log.Info("update stopped")
+		return true
+	}
 	if err != nil {
 		took := time.Since(start).Round(time.Second)
 		log.Error("update failed", "err", err, "took", took)

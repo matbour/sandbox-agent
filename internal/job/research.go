@@ -88,6 +88,10 @@ func (r *Runner) Research(ctx context.Context, is linear.Issue, requester, reque
 			st.Stage, st.Result = StageDone, "research notes"
 		}
 	})
+	if err != nil && ctx.Err() != nil {
+		log.Info("research stopped")
+		return
+	}
 	if err != nil {
 		log.Error("research failed", "err", err, "took", took)
 		rep.Fail(ctx, fmt.Sprintf("research failed after %s.\n\n```\n%s\n```\n\nMention me again to retry.",
