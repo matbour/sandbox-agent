@@ -26,6 +26,15 @@ Rules:
 
 When you are done, your final message must use exactly this format:
 
+STATUS: ready
+or
+STATUS: needs-decision
+QUESTION: <the one decision you need from a person, with the options you see>
+
+Use ready only if the change is complete and the relevant checks pass. Use needs-decision when the
+issue is ambiguous, when a product or design choice is not yours to make, or when you could not
+make it work; you may still leave a partial change for the person to look at.
+
 TITLE: <pull request title, imperative, under 72 characters, without the issue key>
 
 <pull request description in Markdown: what changed and why, how you tested it, and anything the
@@ -122,6 +131,15 @@ Rules:
 %s
 When you are done, your final message must use exactly this format:
 
+STATUS: ready
+or
+STATUS: needs-decision
+QUESTION: <the one decision you need from a person, with the options you see>
+
+Use ready only if the change is complete and the relevant checks pass. Use needs-decision when the
+issue is ambiguous, when a product or design choice is not yours to make, or when you could not
+make it work; you may still leave a partial change for the person to look at.
+
 TITLE: <what this update does, imperative, under 72 characters>
 
 <Markdown for the pull request conversation: what you changed and why, how you tested it, what
@@ -173,4 +191,35 @@ func UpdatePrompt(is linear.Issue, requester, request string, pr *github.PR, fee
 		b.WriteString("Check logs are not available here: reproduce failures locally (build, type-check, tests).\n")
 	}
 	return b.String()
+}
+
+// Decision is what the agent says about its work: ready for review, or a question for a person.
+type Decision struct {
+	Ready    bool
+	Question string
+}
+
+// ParseDecision reads the STATUS and QUESTION lines of the agent's final message and returns the
+// message without them. A missing or unknown status means the agent did not say it was ready.
+func ParseDecision(result string) (Decision, string) {
+	var d Decision
+	var keep []string
+	for _, l := range strings.Split(strings.ReplaceAll(result, "\r\n", "\n"), "\n") {
+		t := strings.TrimSpace(l)
+		if v, ok := strings.CutPrefix(t, "STATUS:"); ok {
+			d.Ready = strings.EqualFold(strings.TrimSpace(v), "ready")
+			continue
+		}
+		if v, ok := strings.CutPrefix(t, "QUESTION:"); ok {
+			d.Question = strings.TrimSpace(v)
+			continue
+		}
+		keep = append(keep, l)
+	}
+	if d.Ready {
+		d.Question = ""
+	} else if d.Question == "" {
+		d.Question = "The agent did not mark this as ready for review; see its summary on the pull request."
+	}
+	return d, strings.Join(keep, "\n")
 }

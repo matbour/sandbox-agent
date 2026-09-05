@@ -35,6 +35,7 @@ type Runner struct {
 
 // Outcome is what a job produced.
 type Outcome struct {
+	Decision Decision // what the agent said about its work
 	PR       *github.PullRequest
 	CostUSD  float64
 	Turns    int
@@ -81,18 +82,29 @@ func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 		r.Log.Error("cannot remove trigger label, skipping", "issue", is.Identifier, "err", err)
 		return
 	}
-	r.NewPR(ctx, is, model, commentReporter{lc: r.Linear, log: r.Log, Issue: is.ID}, true)
+	owner := ""
+	if is.Assignee != nil {
+		owner = is.Assignee.ID
+	} else if is.Creator != nil {
+		owner = is.Creator.ID
+	}
+	r.NewPR(ctx, is, model, commentReporter{lc: r.Linear, log: r.Log, Issue: is.ID}, true, owner)
 }
 
 // NewPR runs the issue and opens a draft pull request, reporting through rep. retryHint adds the
 // label instructions to a failure message.
-func (r *Runner) NewPR(ctx context.Context, is linear.Issue, model string, rep Reporter, retryHint bool) *Outcome {
+func (r *Runner) NewPR(ctx context.Context, is linear.Issue, model string, rep Reporter, retryHint bool, owner string) *Outcome {
 	log := r.Log.With("issue", is.Identifier)
 	ctx = withReporter(ctx, rep)
 	rep.Start(ctx, fmt.Sprintf("picked up, working on it with `%s`.", model))
 	log.Info("job started", "model", model)
 	start := time.Now()
 	out, err := r.Run(ctx, is, model)
+	var f Finish
+	if err == nil {
+		f = r.finish(ctx, out.Dir, is, out.PR.HTMLURL, out.Decision, model, owner)
+		out.CostUSD, out.Turns = out.CostUSD+f.CostUSD, out.Turns+f.Turns
+	}
 	took := time.Since(start).Round(time.Second)
 	if out != nil {
 		// The clone and the workspace (with node_modules) take gigabytes: keep only the logs,
@@ -124,9 +136,14 @@ func (r *Runner) NewPR(ctx context.Context, is linear.Issue, model string, rep R
 		rep.Fail(ctx, msg)
 		return out
 	}
-	log.Info("job done", "pr", out.PR.HTMLURL, "cost", out.CostUSD, "took", took)
-	rep.Done(ctx, fmt.Sprintf("draft pull request ready for review: %s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
-		out.PR.HTMLURL, took, model, out.CostUSD, out.Turns))
+	log.Info("job done", "pr", out.PR.HTMLURL, "ready", f.Ready, "cost", out.CostUSD, "took", took)
+	msg := fmt.Sprintf("%s\n\n%s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
+		f.Message, out.PR.HTMLURL, took, model, out.CostUSD, out.Turns)
+	if f.Ready {
+		rep.Done(ctx, msg)
+	} else {
+		rep.Ask(ctx, msg)
+	}
 	return out
 }
 
@@ -179,7 +196,9 @@ func (r *Runner) Run(ctx context.Context, is linear.Issue, model string) (*Outco
 
 	// Commit, push a new branch, open a draft PR.
 	stage(ctx, dir, StagePublishing)
-	title, body := ParseSummary(ex.agent.Result, is.Title)
+	decision, result := ParseDecision(ex.agent.Result)
+	out.Decision = decision
+	title, body := ParseSummary(result, is.Title)
 	msg := fmt.Sprintf("%s: %s\n\n%s\n", is.Identifier, title, is.URL)
 	if cfg.AuthorEmail != "" {
 		// Deploy platforms (Vercel) only build commits authored by a team member: commit as the

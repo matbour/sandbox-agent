@@ -214,3 +214,23 @@ plain-text mention of D24 stays as a fallback; a comment that opened a session i
 `secrets/linear-webhook-secret` holds one secret per line, since the workspace webhook and the
 application's webhook are signed with different secrets. Raw session payloads are kept under
 `sessions/` in the state directory while the format is being learnt.
+
+## D26. After the push: checks, fix passes, then ready for review or handed back (2026-11-13)
+
+The agent ends with `STATUS: ready` or `STATUS: needs-decision` plus a `QUESTION:`. A missing
+status counts as not ready. After pushing, `agentd`:
+
+- if the agent needs a decision: leaves the pull request as a draft, assigns the issue back to the
+  person who asked (session creator, comment author, or the issue's assignee or creator for a
+  label), and posts the question (an `elicitation` activity in an agent session);
+- otherwise waits for the head commit's checks and statuses (`CI_TIMEOUT`, 25 min; checks named in
+  `IGNORE_CHECKS` are skipped, `claude-review` by default). While some fail, it runs a fix pass
+  with the failures (same mechanism as D24), up to `CI_FIX_ATTEMPTS` (2), then hands back;
+- when all pass, marks the pull request ready for review (GitHub GraphQL
+  `markPullRequestReadyForReview`, which REST lacks). Linear's GitHub integration for the team
+  already moves the issue to In Review on that event, and to Done on merge; `agentd` does not set
+  Linear states itself.
+
+The worker waits for checks inline, so jobs queue behind it; acceptable at the current volume.
+Check logs (Vercel in particular) are not readable with the App's permissions: a fix pass gets
+the check names and summaries and must reproduce the failure in the sandbox.

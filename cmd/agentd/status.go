@@ -54,6 +54,9 @@ func printStatus(w io.Writer, stateDir string, limit int) error {
 			cost = fmt.Sprintf("$%.2f", s.CostUSD)
 		}
 		result := s.PR
+		if s.Result != "" && s.PR != "" {
+			result = s.Result + ": " + s.PR
+		}
 		switch {
 		case s.Stage == job.StageFailed:
 			result = firstLine(s.Error)
@@ -87,6 +90,9 @@ func printJob(w io.Writer, stateDir, issue string) error {
 		}
 		if s.PR != "" {
 			fmt.Fprintf(w, "  pr       %s\n", s.PR)
+		}
+		if s.Result != "" {
+			fmt.Fprintf(w, "  result   %s\n", s.Result)
 		}
 		if s.CostUSD > 0 {
 			fmt.Fprintf(w, "  cost     $%.2f, %d turns\n", s.CostUSD, s.Turns)

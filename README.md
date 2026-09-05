@@ -54,6 +54,10 @@ To update a pull request opened by the agent, mention it in a comment on the Lin
 (`@Sandbox Agent please also handle the empty state`): it merges the latest `main`, reads your
 comment, the PR reviews and the failed checks, and pushes to the same branch.
 
+After pushing, `agentd` waits for the pull request's checks, runs up to two fix passes if they
+fail, then marks the PR ready for review (Linear moves the issue to In Review). If the agent needs
+a decision, or the checks keep failing, the PR stays a draft and the issue is assigned back.
+
 Follow the jobs:
 
 ```bash

@@ -248,14 +248,15 @@ func securityHeaders(next http.Handler) http.Handler {
 
 // AgentSessionEvent is the part of a Linear AgentSessionEvent webhook the worker uses.
 type AgentSessionEvent struct {
-	Action    string // created or prompted
-	SessionID string
-	IssueID   string
-	Issue     string // identifier
-	CommentID string
-	Request   string // the mention comment, or the follow-up message
-	Requester string
-	Raw       []byte
+	Action      string // created or prompted
+	SessionID   string
+	IssueID     string
+	Issue       string // identifier
+	CommentID   string
+	Request     string // the mention comment, or the follow-up message
+	Requester   string
+	RequesterID string
+	Raw         []byte
 }
 
 func parseAgentSession(body []byte) (AgentSessionEvent, error) {
@@ -272,6 +273,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 				Body string `json:"body"`
 			} `json:"comment"`
 			Creator *struct {
+				ID   string `json:"id"`
 				Name string `json:"name"`
 			} `json:"creator"`
 		} `json:"agentSession"`
@@ -281,6 +283,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 				Body string `json:"body"`
 			} `json:"content"`
 			User *struct {
+				ID   string `json:"id"`
 				Name string `json:"name"`
 			} `json:"user"`
 		} `json:"agentActivity"`
@@ -297,7 +300,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 		ev.CommentID, ev.Request = c.ID, c.Body
 	}
 	if cr := p.AgentSession.Creator; cr != nil {
-		ev.Requester = cr.Name
+		ev.Requester, ev.RequesterID = cr.Name, cr.ID
 	}
 	if a := p.AgentActivity; p.Action == "prompted" && a != nil {
 		ev.Request = a.Body
@@ -305,7 +308,7 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 			ev.Request = a.Content.Body
 		}
 		if a.User != nil {
-			ev.Requester = a.User.Name
+			ev.Requester, ev.RequesterID = a.User.Name, a.User.ID
 		}
 	}
 	return ev, nil

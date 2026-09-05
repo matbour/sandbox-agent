@@ -19,6 +19,7 @@ const (
 	StageAgent      = "agent"
 	StageValidating = "validating"
 	StagePublishing = "publishing"
+	StageChecks     = "checks"
 	StageDone       = "done"
 	StageFailed     = "failed"
 	// StageInterrupted is never written: Jobs reports it for a job whose agentd process is gone.
@@ -48,6 +49,7 @@ type State struct {
 	CostUSD  float64    `json:"cost_usd,omitempty"`
 	Turns    int        `json:"turns,omitempty"`
 	Error    string     `json:"error,omitempty"`
+	Result   string     `json:"result,omitempty"` // "ready for review" or "needs a decision"
 	Dir      string     `json:"dir"`
 }
 
@@ -272,14 +274,15 @@ func alive(pid int) bool {
 // Session is a Linear agent session event waiting for the worker: the agent was mentioned,
 // delegated an issue, or sent a follow-up message in a session.
 type Session struct {
-	ID        string    `json:"id"`
-	Action    string    `json:"action"` // created or prompted
-	IssueID   string    `json:"issue_id"`
-	Issue     string    `json:"issue"` // identifier, for logs
-	CommentID string    `json:"comment_id,omitempty"`
-	Request   string    `json:"request,omitempty"` // the comment or message text
-	Requester string    `json:"requester,omitempty"`
-	Received  time.Time `json:"received"`
+	ID          string    `json:"id"`
+	Action      string    `json:"action"` // created or prompted
+	IssueID     string    `json:"issue_id"`
+	Issue       string    `json:"issue"` // identifier, for logs
+	CommentID   string    `json:"comment_id,omitempty"`
+	Request     string    `json:"request,omitempty"` // the comment or message text
+	Requester   string    `json:"requester,omitempty"`
+	RequesterID string    `json:"requester_id,omitempty"` // Linear user to hand the issue back to
+	Received    time.Time `json:"received"`
 }
 
 // EnqueueSession stores a session event for the worker. A comment that opened a session is also

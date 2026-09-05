@@ -31,7 +31,11 @@ func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
 		requester = c.User.Name
 	}
 	rep := commentReporter{lc: r.Linear, log: r.Log, Issue: c.Issue.ID, Parent: c.ID}
-	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep) {
+	owner := ""
+	if c.User != nil {
+		owner = c.User.ID
+	}
+	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep, owner) {
 		rep.Done(ctx, fmt.Sprintf("I have not opened a pull request for this issue yet. Add the `%s` label to start one.",
 			r.Cfg.TriggerLabel))
 	}
@@ -40,7 +44,7 @@ func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
 // UpdatePR merges the latest base branch into the issue's agent pull request, runs the agent with
 // the request, the PR feedback and the failed checks, and pushes to the same branch. Without a
 // pull request it says so and returns false.
-func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, request, ref string, rep Reporter) bool {
+func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, request, ref string, rep Reporter, owner string) bool {
 	log := r.Log.With("issue", is.Identifier)
 	ctx = withReporter(ctx, rep)
 	prURL, model := LastPR(r.Cfg.StateDir, is.Identifier)
@@ -60,8 +64,35 @@ func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, reque
 	rep.Start(ctx, fmt.Sprintf("on it, updating %s with `%s` (latest `main` merged first).", prURL, model))
 	log.Info("update started", "pr", prURL, "model", model)
 	start := time.Now()
-	out, err := r.followUp(ctx, is, requester, request, ref, prURL, model)
+	out, err := r.runUpdate(ctx, is, requester, request, ref, prURL, model)
+	if err != nil {
+		took := time.Since(start).Round(time.Second)
+		log.Error("update failed", "err", err, "took", took)
+		msg := fmt.Sprintf("update failed after %s.\n\n```\n%s\n```", took, truncate(err.Error(), 3000))
+		if out != nil && out.CostUSD > 0 {
+			msg += fmt.Sprintf("\n\nAgent cost: $%.2f, %d turns.", out.CostUSD, out.Turns)
+		}
+		rep.Fail(ctx, msg+"\n\nMention me again to retry.")
+		return true
+	}
+	cost, turns := out.CostUSD, out.Turns
+	f := r.finish(ctx, out.Dir, is, prURL, out.Decision, model, owner)
+	cost, turns = cost+f.CostUSD, turns+f.Turns
 	took := time.Since(start).Round(time.Second)
+	log.Info("update done", "pr", prURL, "ready", f.Ready, "cost", cost, "took", took)
+	msg := fmt.Sprintf("%s\n\n%s\n\n%s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
+		out.Summary, f.Message, prURL, took, model, cost, turns)
+	if f.Ready {
+		rep.Done(ctx, msg)
+	} else {
+		rep.Ask(ctx, msg)
+	}
+	return true
+}
+
+// runUpdate runs one update pass and records its outcome in the state.
+func (r *Runner) runUpdate(ctx context.Context, is linear.Issue, requester, request, ref, prURL, model string) (*UpdateOutcome, error) {
+	out, err := r.followUp(ctx, is, requester, request, ref, prURL, model)
 	if out != nil {
 		_ = os.RemoveAll(filepath.Join(out.Dir, "repo"))
 		_ = os.RemoveAll(filepath.Join(out.Dir, "workspace"))
@@ -74,19 +105,7 @@ func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, reque
 			}
 		})
 	}
-	if err != nil {
-		log.Error("update failed", "err", err, "took", took)
-		msg := fmt.Sprintf("update failed after %s.\n\n```\n%s\n```", took, truncate(err.Error(), 3000))
-		if out != nil && out.CostUSD > 0 {
-			msg += fmt.Sprintf("\n\nAgent cost: $%.2f, %d turns.", out.CostUSD, out.Turns)
-		}
-		rep.Fail(ctx, msg+"\n\nMention me again to retry.")
-		return true
-	}
-	log.Info("update done", "pr", prURL, "cost", out.CostUSD, "took", took)
-	rep.Done(ctx, fmt.Sprintf("%s\n\n%s\n\nTook %s, `%s`, agent cost $%.2f, %d turns.",
-		out.Summary, prURL, took, model, out.CostUSD, out.Turns))
-	return true
+	return out, err
 }
 
 // UpdateOutcome is what an update produced.
@@ -179,7 +198,9 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, requester, reque
 	// Commit: resolutions amend the local merge commit (markers never reach the branch); other
 	// changes go in their own commit on top.
 	stage(ctx, dir, StagePublishing)
-	title, body := ParseSummary(ex.agent.Result, "Address feedback")
+	decision, result := ParseDecision(ex.agent.Result)
+	out.Decision = decision
+	title, body := ParseSummary(result, "Address feedback")
 	gw := &gitops.Git{Dir: repoDir, WorkTree: ws, Env: r.authorEnv()}
 	trailer := ""
 	if cfg.AuthorEmail != "" {

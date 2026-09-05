@@ -125,6 +125,7 @@ func (r *Repo) DefaultBranch(ctx context.Context) (string, error) {
 // PullRequest is the subset of the API response the worker uses.
 type PullRequest struct {
 	Number  int    `json:"number"`
+	NodeID  string `json:"node_id"`
 	HTMLURL string `json:"html_url"`
 }
 
@@ -189,6 +190,8 @@ func (a *App) call(ctx context.Context, method, path, auth string, in, out any) 
 // PR is the subset of a pull request the worker uses.
 type PR struct {
 	Number  int    `json:"number"`
+	NodeID  string `json:"node_id"`
+	Draft   bool   `json:"draft"`
 	State   string `json:"state"`
 	Merged  bool   `json:"merged"`
 	HTMLURL string `json:"html_url"`
@@ -327,4 +330,25 @@ func PRNumber(url string) (int, bool) {
 		n = n*10 + int(c-'0')
 	}
 	return n, n > 0
+}
+
+// MarkReady takes a draft pull request out of draft. The REST API cannot do it; GraphQL can.
+func (r *Repo) MarkReady(ctx context.Context, nodeID string) error {
+	body := map[string]any{
+		"query":     `mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`,
+		"variables": map[string]string{"id": nodeID},
+	}
+	var out struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	a := &App{HTTP: r.HTTP}
+	if err := a.call(ctx, http.MethodPost, "/graphql", "token "+r.Token.Value, body, &out); err != nil {
+		return err
+	}
+	if len(out.Errors) > 0 {
+		return fmt.Errorf("github: mark ready: %s", out.Errors[0].Message)
+	}
+	return nil
 }

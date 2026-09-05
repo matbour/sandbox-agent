@@ -130,7 +130,7 @@ footer { color:var(--muted); font-size:12px; margin-top:12px; }
   <td class="num">{{.Started.Local.Format "Jan 02 15:04"}}</td>
   <td class="num">{{.Time}}</td>
   <td class="num">{{.Cost}}</td>
-  <td>{{if .PR}}<a href="{{.PR}}" rel="noreferrer">pull request</a>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</td>
+  <td>{{if .PR}}<a href="{{.PR}}" rel="noreferrer">pull request</a>{{if .Result}} · {{.Result}}{{end}}{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</td>
 </tr>
 {{else}}
 <tr><td colspan="7">No jobs yet.</td></tr>

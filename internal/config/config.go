@@ -17,11 +17,14 @@ type Config struct {
 	LinearAPIKey   string
 	LinearClientID string // OAuth application (client credentials); preferred over the API key
 	LinearSecret   string
-	LinearHookKey  string // Linear webhook signing secret; empty disables the webhook route
-	WebAddr        string // loopback address of the HTTP server; empty disables it
-	AccessTeam     string // Cloudflare Access team name, for the overview behind the tunnel
-	AccessAUD      string // Cloudflare Access application audience tag
-	OverviewURL    string // public URL of the overview, linked from Linear agent sessions
+	LinearHookKey  string        // Linear webhook signing secret; empty disables the webhook route
+	WebAddr        string        // loopback address of the HTTP server; empty disables it
+	AccessTeam     string        // Cloudflare Access team name, for the overview behind the tunnel
+	AccessAUD      string        // Cloudflare Access application audience tag
+	OverviewURL    string        // public URL of the overview, linked from Linear agent sessions
+	CIWait         time.Duration // how long to wait for a pull request's checks
+	CIFixAttempts  int           // fix passes while checks fail, before handing back
+	IgnoreChecks   []string      // checks that do not decide readiness (substring match)
 	TriggerLabel   string
 	TeamKeys       []string // empty: all teams
 	PollInterval   time.Duration
@@ -181,6 +184,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		AccessTeam:     get("ACCESS_TEAM", ""),
 		AccessAUD:      get("ACCESS_AUD", ""),
 		OverviewURL:    get("OVERVIEW_URL", ""),
+		IgnoreChecks:   list(get("IGNORE_CHECKS", "claude-review")),
 		TriggerLabel:   get("TRIGGER_LABEL", "agent"),
 		TeamKeys:       list(get("LINEAR_TEAMS", "")),
 		GitHubAppID:    get("GITHUB_APP_ID", ""),
@@ -206,12 +210,15 @@ func load(secretsDir string, full bool) (*Config, error) {
 	if c.AgentTimeout, err = time.ParseDuration(get("AGENT_TIMEOUT", "45m")); err != nil {
 		return nil, fmt.Errorf("AGENT_TIMEOUT: %w", err)
 	}
+	if c.CIWait, err = time.ParseDuration(get("CI_TIMEOUT", "25m")); err != nil {
+		return nil, fmt.Errorf("CI_TIMEOUT: %w", err)
+	}
 	for k, dst := range map[string]*int{
 		"SANDBOX_CPUS": &c.SandboxCPUs, "AGENT_MAX_TURNS": &c.AgentMaxTurns,
-		"MAX_FILES": &c.MaxFiles, "MAX_PATCH_BYTES": &c.MaxPatchBytes,
+		"MAX_FILES": &c.MaxFiles, "MAX_PATCH_BYTES": &c.MaxPatchBytes, "CI_FIX_ATTEMPTS": &c.CIFixAttempts,
 	} {
 		def := map[string]string{"SANDBOX_CPUS": "4", "AGENT_MAX_TURNS": "150",
-			"MAX_FILES": "200", "MAX_PATCH_BYTES": "2000000"}[k]
+			"MAX_FILES": "200", "MAX_PATCH_BYTES": "2000000", "CI_FIX_ATTEMPTS": "2"}[k]
 		if *dst, err = strconv.Atoi(get(k, def)); err != nil {
 			return nil, fmt.Errorf("%s: %w", k, err)
 		}

@@ -134,7 +134,7 @@ func main() {
 				}
 				job.EnqueueSession(cfg.StateDir, job.Session{ID: ev.SessionID, Action: ev.Action,
 					IssueID: ev.IssueID, Issue: ev.Issue, CommentID: ev.CommentID, Request: ev.Request,
-					Requester: ev.Requester, Received: time.Now().UTC()})
+					Requester: ev.Requester, RequesterID: ev.RequesterID, Received: time.Now().UTC()})
 				// Linear marks a session unresponsive without an activity within 10 s.
 				go func() {
 					actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 8*time.Second)

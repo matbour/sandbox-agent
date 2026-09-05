@@ -21,7 +21,7 @@ func (r *Runner) HandleSession(ctx context.Context, s Session, overview string) 
 	if requester == "" {
 		requester = "someone"
 	}
-	if r.UpdatePR(ctx, *is, requester, s.Request, s.ID, rep) {
+	if r.UpdatePR(ctx, *is, requester, s.Request, s.ID, rep, s.RequesterID) {
 		return
 	}
 	var words []string
@@ -32,7 +32,7 @@ func (r *Runner) HandleSession(ctx context.Context, s Session, overview string) 
 	if !ok {
 		model = r.Cfg.AgentModel
 	}
-	if out := r.NewPR(ctx, *is, model, rep, false); out != nil && out.PR != nil {
+	if out := r.NewPR(ctx, *is, model, rep, false, s.RequesterID); out != nil && out.PR != nil {
 		_ = r.Linear.AgentSessionLink(ctx, s.ID, "Pull request", out.PR.HTMLURL)
 	}
 }

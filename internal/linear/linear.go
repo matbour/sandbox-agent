@@ -135,7 +135,9 @@ type Issue struct {
 	Team        struct {
 		Key string `json:"key"`
 	} `json:"team"`
-	Labels struct {
+	Creator  *Person `json:"creator"`
+	Assignee *Person `json:"assignee"`
+	Labels   struct {
 		Nodes []Label `json:"nodes"`
 	} `json:"labels"`
 	Comments struct {
@@ -202,7 +204,7 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	return nil
 }
 
-const issueFields = `id identifier title description url team { key }
+const issueFields = `id identifier title description url team { key } creator { id name } assignee { id name }
 labels { nodes { id name } }
 comments(first: 50) { nodes { body user { name } } }`
 
@@ -336,4 +338,16 @@ func (c *Client) AgentSessionLink(ctx context.Context, session, label, url strin
 	q := `mutation($id: String!, $i: AgentSessionUpdateInput!) { agentSessionUpdate(id: $id, input: $i) { success } }`
 	return c.do(ctx, q, map[string]any{"id": session, "i": map[string]any{
 		"addedExternalUrls": []map[string]string{{"label": label, "url": url}}}}, nil)
+}
+
+// Person is a Linear user.
+type Person struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// Assign sets the issue's assignee.
+func (c *Client) Assign(ctx context.Context, issueID, userID string) error {
+	q := `mutation($id: String!, $u: String) { issueUpdate(id: $id, input: { assigneeId: $u }) { success } }`
+	return c.do(ctx, q, map[string]any{"id": issueID, "u": userID}, nil)
 }

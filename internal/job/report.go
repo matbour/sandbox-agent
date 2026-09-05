@@ -12,6 +12,7 @@ type Reporter interface {
 	Start(ctx context.Context, text string)
 	Progress(ctx context.Context, text string) // intermediate steps; may be dropped
 	Done(ctx context.Context, text string)
+	Ask(ctx context.Context, text string) // the work stops on a question for a person
 	Fail(ctx context.Context, text string)
 }
 
@@ -39,6 +40,7 @@ func (c commentReporter) Start(ctx context.Context, t string) { c.post(ctx, t) }
 func (c commentReporter) Progress(context.Context, string)    {}
 func (c commentReporter) Done(ctx context.Context, t string)  { c.post(ctx, t) }
 func (c commentReporter) Fail(ctx context.Context, t string)  { c.post(ctx, t) }
+func (c commentReporter) Ask(ctx context.Context, t string)   { c.post(ctx, t) }
 
 // sessionReporter writes activities in a Linear agent session, shown live in the issue.
 type sessionReporter struct {
@@ -57,6 +59,7 @@ func (s sessionReporter) Start(ctx context.Context, t string)    { s.emit(ctx, "
 func (s sessionReporter) Progress(ctx context.Context, t string) { s.emit(ctx, "thought", t) }
 func (s sessionReporter) Done(ctx context.Context, t string)     { s.emit(ctx, "response", t) }
 func (s sessionReporter) Fail(ctx context.Context, t string)     { s.emit(ctx, "error", t) }
+func (s sessionReporter) Ask(ctx context.Context, t string)      { s.emit(ctx, "elicitation", t) }
 
 type reporterKey struct{}
 
@@ -70,6 +73,7 @@ var stageText = map[string]string{
 	StageAgent:      "Working on the code in the sandbox.",
 	StageValidating: "Checking the changes.",
 	StagePublishing: "Pushing to GitHub.",
+	StageChecks:     "Waiting for the checks on the pull request (CI, preview deployment).",
 }
 
 // stage records the job's stage and, for agent sessions, shows it in Linear.
