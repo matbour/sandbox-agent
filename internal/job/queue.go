@@ -1,6 +1,9 @@
 package job
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Session is a Linear agent session event waiting for the worker: the agent was mentioned,
 // delegated an issue, or sent a follow-up message in a session.
@@ -31,6 +34,20 @@ func EnqueueSession(root string, s Session) {
 		}
 		return nil
 	})
+}
+
+// TakeSession removes and returns the oldest waiting session. The others stay in the state file,
+// visible in the overview and safe across restarts.
+func TakeSession(root string) (Session, bool) {
+	var out Session
+	ok := false
+	_ = withState(root, true, func(sf *stateFile) error {
+		if len(sf.Sessions) > 0 {
+			out, sf.Sessions, ok = sf.Sessions[0], sf.Sessions[1:], true
+		}
+		return nil
+	})
+	return out, ok
 }
 
 // TakeSessions removes and returns the waiting sessions, oldest first.
@@ -106,4 +123,22 @@ func MentionHandled(root, id string) bool {
 		return nil
 	})
 	return found
+}
+
+// Queued returns the agent sessions waiting for the worker, oldest first.
+func Queued(root string) []Session {
+	var out []Session
+	_ = withState(root, false, func(sf *stateFile) error {
+		out = append(out, sf.Sessions...)
+		return nil
+	})
+	return out
+}
+
+// Kind describes what a queued session will do, as far as can be told before running it.
+func (s Session) Kind() string {
+	if strings.HasPrefix(s.Request, "This thread is for an agent session") {
+		return "delegated"
+	}
+	return "mentioned"
 }

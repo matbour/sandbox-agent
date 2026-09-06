@@ -194,10 +194,10 @@ func main() {
 			}
 			r.Handle(context.WithoutCancel(ctx), is)
 		}
-		for _, sess := range job.TakeSessions(cfg.StateDir) {
-			if ctx.Err() != nil {
-				job.EnqueueSession(cfg.StateDir, sess) // keep it for the next start
-				continue
+		for ctx.Err() == nil {
+			sess, ok := job.TakeSession(cfg.StateDir)
+			if !ok {
+				break
 			}
 			log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
 			r.HandleSession(context.WithoutCancel(ctx), sess, overviewURL, meID)

@@ -114,3 +114,13 @@ func TestStopSessionAndDrop(t *testing.T) {
 		t.Fatal("StopSession did not cancel exactly once")
 	}
 }
+
+func TestTakeSessionOneByOne(t *testing.T) {
+	root := t.TempDir()
+	EnqueueSession(root, Session{ID: "a", Action: "created"})
+	EnqueueSession(root, Session{ID: "b", Action: "created"})
+	s, ok := TakeSession(root)
+	if !ok || s.ID != "a" || len(Queued(root)) != 1 || Queued(root)[0].ID != "b" {
+		t.Fatalf("took %+v, left %+v", s, Queued(root))
+	}
+}

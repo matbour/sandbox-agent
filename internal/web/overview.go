@@ -71,9 +71,19 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		}
 		cost += j.CostUSD
 	}
+	type queued struct{ Issue, Kind, Since, Request string }
+	var q []queued
+	for _, s := range job.Queued(s.StateDir) {
+		req := strings.Join(strings.Fields(s.Request), " ")
+		if r := []rune(req); len(r) > 120 {
+			req = string(r[:119]) + "…"
+		}
+		q = append(q, queued{s.Issue, s.Kind(), s.Received.Local().Format("15:04"), req})
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = page.Execute(w, map[string]any{
-		"Jobs": jobs, "Running": running, "Total": len(jobs), "Cost": fmt.Sprintf("$%.2f", cost),
+		"Queue": q,
+		"Jobs":  jobs, "Running": running, "Total": len(jobs), "Cost": fmt.Sprintf("$%.2f", cost),
 		"User": r.Header.Get("X-Agentd-User"), "Now": time.Now().Format("15:04:05"),
 	})
 }
@@ -96,6 +106,7 @@ body { margin:0; padding:24px 16px; background:var(--bg); color:var(--fg);
 main { max-width:1100px; margin:0 auto; }
 header { display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; margin-bottom:16px; }
 h1 { font-size:18px; margin:0; }
+h2 { font-size:13px; margin:0 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
 .stats { color:var(--muted); }
 .stats b { color:var(--fg); }
 .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }
@@ -116,8 +127,21 @@ footer { color:var(--muted); font-size:12px; margin-top:12px; }
 <main>
 <header>
   <h1>sandbox-agent</h1>
-  <span class="stats"><b>{{.Running}}</b> running · <b>{{.Total}}</b> jobs · <b>{{.Cost}}</b> agent cost</span>
+  <span class="stats"><b>{{.Running}}</b> running · <b>{{len .Queue}}</b> queued · <b>{{.Total}}</b> jobs · <b>{{.Cost}}</b> agent cost</span>
 </header>
+{{if .Queue}}
+<h2>Queued</h2>
+<div class="wrap" style="margin-bottom:16px">
+<table>
+<thead><tr><th>Issue</th><th>Trigger</th><th>Since</th><th>Request</th></tr></thead>
+<tbody>
+{{range .Queue}}<tr><td>{{.Issue}}</td><td>{{.Kind}}</td><td class="num">{{.Since}}</td><td class="title">{{.Request}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+<h2>Jobs</h2>
+{{end}}
 <div class="wrap">
 <table>
 <thead><tr><th>Issue</th><th>Stage</th><th>Model</th><th>Started</th><th>Time</th><th>Cost</th><th>Result</th></tr></thead>
@@ -130,7 +154,7 @@ footer { color:var(--muted); font-size:12px; margin-top:12px; }
   <td class="num">{{.Started.Local.Format "Jan 02 15:04"}}</td>
   <td class="num">{{.Time}}</td>
   <td class="num">{{.Cost}}</td>
-  <td>{{if .PR}}<a href="{{.PR}}" rel="noreferrer">pull request</a>{{if .Result}} · {{.Result}}{{end}}{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</td>
+  <td>{{if .PR}}<a href="{{.PR}}" rel="noreferrer">pull request</a>{{if .Result}} · {{.Result}}{{end}}{{else}}{{.Result}}{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</td>
 </tr>
 {{else}}
 <tr><td colspan="7">No jobs yet.</td></tr>

@@ -33,6 +33,12 @@ func printStatus(w io.Writer, stateDir string, limit int) error {
 		}
 		fmt.Fprintf(w, "sandboxes: %s\n", strings.Join(names, ", "))
 	}
+	if q := job.Queued(stateDir); len(q) > 0 {
+		fmt.Fprintf(w, "queued: %d\n", len(q))
+		for _, s := range q {
+			fmt.Fprintf(w, "  %-8s %-9s since %s  %s\n", s.Issue, s.Kind(), s.Received.Local().Format("15:04"), cut(firstLine(s.Request), 60))
+		}
+	}
 	jobs, err := job.Jobs(stateDir)
 	if err != nil {
 		return err
@@ -54,8 +60,11 @@ func printStatus(w io.Writer, stateDir string, limit int) error {
 			cost = fmt.Sprintf("$%.2f", s.CostUSD)
 		}
 		result := s.PR
-		if s.Result != "" && s.PR != "" {
+		switch {
+		case s.Result != "" && s.PR != "":
 			result = s.Result + ": " + s.PR
+		case s.Result != "":
+			result = s.Result
 		}
 		switch {
 		case s.Stage == job.StageFailed:
