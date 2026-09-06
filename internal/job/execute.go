@@ -86,6 +86,9 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		return ex, err
 	}
 	update(dir, func(st *State) { st.Sandbox = sb.Name })
+	if err := sb.TrimCache(ctx, 20*time.Second); err != nil {
+		r.Log.Warn("cache trimmer", "err", err) // memory only: not worth failing the job
+	}
 	defer func() {
 		if err := sb.RemoveHard(cfg.CPUs); err != nil {
 			r.Log.Warn("sandbox cleanup", "err", err)
@@ -103,6 +106,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		so, se, err := sb.Exec(sctx, "", "bash", "-euo", "pipefail", "-c", string(script))
 		cancel()
 		logf("setup.log", append(so, se...))
+		sb.DropCache(ctx) // the install read and wrote gigabytes
 		if err != nil {
 			return ex, fmt.Errorf("setup script: %w: %s", err, truncate(lastLines(string(se), 20), 2000))
 		}

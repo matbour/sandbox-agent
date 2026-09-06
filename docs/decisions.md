@@ -261,3 +261,13 @@ during a job, permission changes and the application's revocation.
 - A delegated job where the agent changes nothing (for example the content lives in a CMS, not in
   the repository) now ends as "needs a decision": the agent's explanation is posted as a question
   and the issue is assigned back, instead of a failure.
+
+## D29. Drop the VM's page cache (2026-11-13)
+
+A job VM filled its memory cap (6.9 GB on the host for a 6 GiB sandbox) while its processes used
+443 MB: the rest was the guest's page cache, filled by `bun install` and by reading
+`node_modules`. A VM does not return cached pages to the host, and those files are already in
+the host's own cache. `agentd` now starts a root loop in each VM that drops the page cache every
+20 s, and drops it once after the setup script. Dropped pages go back to the host through free
+page reporting: measured 2.3 GB down to 0.8 GB within a few seconds after 1 GB of file I/O. The
+memory cap stays as a ceiling for build peaks; the real peak is still to be measured.
