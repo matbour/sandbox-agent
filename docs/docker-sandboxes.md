@@ -172,3 +172,20 @@ save that time on every job; to try later.
 - Whether the agent can see host paths outside the workspace (stdio MCP servers and shared skill
   stores run on the host, according to the security page).
 - Cleanup: `sbx rm` and where the VM disks live on the host.
+
+## Shared Bun cache: measured, not adopted (2026-11-13)
+
+On the target monorepo (3,021 packages), with a 4-CPU, 4 GiB VM:
+
+| Install | Time |
+| --- | --- |
+| No cache (current setup) | 123 s |
+| Shared cache, read-only mount | fails: Bun needs its temporary directory on the cache's filesystem (`EROFS … set $BUN_TMPDIR`), even on cache hits |
+| Shared cache through an overlay in the VM (root install, then `chown` to `agent`) | 181 s (143 s + 38 s) |
+
+The cost is writing about 2 GB of packages into the workspace, a virtiofs mount shared with the
+host, not downloading them. Other findings: the extra mount `PATH:TARGET:ro` works and refuses
+writes; the guest kernel has overlayfs but the image has no `mount` binary (a `mount(2)` call from
+Python works); in such an overlay `agent` cannot create files inside lower directories, `root`
+can. Next idea to measure: `node_modules` on the VM's own disk (a bind mount over
+`workspace/node_modules`), where a shared cache could hard-link instead of copying.
