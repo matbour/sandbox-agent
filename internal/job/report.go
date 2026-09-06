@@ -37,10 +37,14 @@ func (c commentReporter) post(ctx context.Context, text string) {
 }
 
 func (c commentReporter) Start(ctx context.Context, t string) { c.post(ctx, t) }
-func (c commentReporter) Progress(context.Context, string)    {}
-func (c commentReporter) Done(ctx context.Context, t string)  { c.post(ctx, t) }
-func (c commentReporter) Fail(ctx context.Context, t string)  { c.post(ctx, t) }
-func (c commentReporter) Ask(ctx context.Context, t string)   { c.post(ctx, t) }
+
+func (c commentReporter) Progress(context.Context, string) {}
+
+func (c commentReporter) Done(ctx context.Context, t string) { c.post(ctx, t) }
+
+func (c commentReporter) Fail(ctx context.Context, t string) { c.post(ctx, t) }
+
+func (c commentReporter) Ask(ctx context.Context, t string) { c.post(ctx, t) }
 
 // sessionReporter writes activities in a Linear agent session, shown live in the issue.
 type sessionReporter struct {
@@ -55,11 +59,15 @@ func (s sessionReporter) emit(ctx context.Context, kind, text string) {
 	}
 }
 
-func (s sessionReporter) Start(ctx context.Context, t string)    { s.emit(ctx, "thought", t) }
+func (s sessionReporter) Start(ctx context.Context, t string) { s.emit(ctx, "thought", t) }
+
 func (s sessionReporter) Progress(ctx context.Context, t string) { s.emit(ctx, "thought", t) }
-func (s sessionReporter) Done(ctx context.Context, t string)     { s.emit(ctx, "response", t) }
-func (s sessionReporter) Fail(ctx context.Context, t string)     { s.emit(ctx, "error", t) }
-func (s sessionReporter) Ask(ctx context.Context, t string)      { s.emit(ctx, "elicitation", t) }
+
+func (s sessionReporter) Done(ctx context.Context, t string) { s.emit(ctx, "response", t) }
+
+func (s sessionReporter) Fail(ctx context.Context, t string) { s.emit(ctx, "error", t) }
+
+func (s sessionReporter) Ask(ctx context.Context, t string) { s.emit(ctx, "elicitation", t) }
 
 type reporterKey struct{}
 

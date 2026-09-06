@@ -23,26 +23,18 @@ func (r *Runner) Research(ctx context.Context, is linear.Issue, requester, reque
 	cfg := r.Cfg
 	log := r.Log.With("issue", is.Identifier)
 	ctx = withReporter(ctx, rep)
-	model := cfg.AgentModel
-	var words []string
-	for _, w := range strings.Fields(request) {
-		words = append(words, strings.Trim(w, "`.,;:!?()[]"))
-	}
-	if m, ok := cfg.ModelFor(words); ok {
-		model = m
-	}
+	model := r.requestModel(request, "")
 	rep.Start(ctx, fmt.Sprintf("looking into it with `%s`: reading the code and, if needed, the docs.", model))
 	log.Info("research started", "model", model)
 
 	start := time.Now()
-	stamp := start.UTC().Format("20060102-150405")
-	slug := strings.Trim(unsafeName.ReplaceAllString(strings.ToLower(is.Identifier), "-"), "-")
-	dir := filepath.Join(cfg.StateDir, "jobs", slug+"-research-"+stamp)
-	repoDir, ws := filepath.Join(dir, "repo"), filepath.Join(dir, "workspace")
+	w, err := r.newWorkdir(is.Identifier, "research")
+	if err != nil {
+		rep.Fail(ctx, "cannot create the job directory: "+err.Error())
+		return
+	}
+	dir, repoDir, ws, slug, stamp := w.dir, w.repo, w.ws, w.slug, w.stamp
 	notes, ex, err := func() (string, *Execution, error) {
-		if err := os.MkdirAll(ws, 0o700); err != nil {
-			return "", nil, err
-		}
 		update(dir, func(st *State) {
 			st.Issue, st.Title, st.URL, st.Model, st.Kind = is.Identifier, "research: "+is.Title, is.URL, model, "research"
 			st.PID, st.Started = os.Getpid(), time.Now().UTC()
@@ -75,8 +67,7 @@ func (r *Runner) Research(ctx context.Context, is linear.Issue, requester, reque
 		_ = os.WriteFile(filepath.Join(dir, notesFile), []byte(answer), 0o600)
 		return answer, ex, nil
 	}()
-	_ = os.RemoveAll(repoDir)
-	_ = os.RemoveAll(ws)
+	cleanWorkdir(dir)
 	took := time.Since(start).Round(time.Second)
 	update(dir, func(st *State) {
 		if ex != nil {

@@ -2,7 +2,6 @@ package job
 
 import (
 	"context"
-	"strings"
 	"sync"
 )
 
@@ -50,14 +49,7 @@ func (r *Runner) HandleSession(ctx context.Context, s Session, overview, appUser
 		r.Research(ctx, *is, requester, s.Request, rep)
 		return
 	}
-	var words []string
-	for _, w := range strings.Fields(s.Request) {
-		words = append(words, strings.Trim(w, "`.,;:!?()[]"))
-	}
-	model, ok := r.Cfg.ModelFor(words)
-	if !ok {
-		model = r.Cfg.AgentModel
-	}
+	model := r.requestModel(s.Request, "")
 	if out := r.NewPR(ctx, *is, model, rep, false, s.RequesterID); out != nil && out.PR != nil {
 		_ = r.Linear.AgentSessionLink(ctx, s.ID, "Pull request", out.PR.HTMLURL)
 	}

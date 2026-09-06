@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -13,32 +11,6 @@ import (
 	"github.com/matbour/sandbox-agent/internal/gitops"
 	"github.com/matbour/sandbox-agent/internal/linear"
 )
-
-// MentionPattern matches a mention of the agent's Linear name in a comment ("@Sandbox Agent",
-// "@sandbox-agent", or a Markdown mention link), with flexible spacing and case.
-func MentionPattern(name string) *regexp.Regexp {
-	words := strings.Fields(name)
-	for i, w := range words {
-		words[i] = regexp.QuoteMeta(w)
-	}
-	return regexp.MustCompile(`(?i)@\s*` + strings.Join(words, `[\s_-]*`) + `\b`)
-}
-
-// HandleMention updates the pull request of the comment's issue, replying in the comment's thread.
-func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
-	requester := "someone"
-	if c.User != nil {
-		requester = c.User.Name
-	}
-	rep := commentReporter{lc: r.Linear, log: r.Log, Issue: c.Issue.ID, Parent: c.ID}
-	owner := ""
-	if c.User != nil {
-		owner = c.User.ID
-	}
-	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep, owner) {
-		r.Research(ctx, *c.Issue, requester, c.Body, rep)
-	}
-}
 
 // UpdatePR merges the latest base branch into the issue's agent pull request, runs the agent with
 // the request, the PR feedback and the failed checks, and pushes to the same branch. Without a
@@ -50,16 +22,7 @@ func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, reque
 	if prURL == "" {
 		return false
 	}
-	var words []string
-	for _, w := range strings.Fields(request) {
-		words = append(words, strings.Trim(w, "`.,;:!?()[]"))
-	}
-	if m, ok := r.Cfg.ModelFor(words); ok {
-		model = m // an explicit model label in the request wins
-	}
-	if model == "" {
-		model = r.Cfg.AgentModel
-	}
+	model = r.requestModel(request, model) // a model label in the request wins
 	rep.Start(ctx, fmt.Sprintf("on it, updating %s with `%s` (latest `main` merged first).", prURL, model))
 	log.Info("update started", "pr", prURL, "model", model)
 	start := time.Now()
@@ -97,8 +60,7 @@ func (r *Runner) UpdatePR(ctx context.Context, is linear.Issue, requester, reque
 func (r *Runner) runUpdate(ctx context.Context, is linear.Issue, requester, request, ref, prURL, model string) (*UpdateOutcome, error) {
 	out, err := r.followUp(ctx, is, requester, request, ref, prURL, model)
 	if out != nil {
-		_ = os.RemoveAll(filepath.Join(out.Dir, "repo"))
-		_ = os.RemoveAll(filepath.Join(out.Dir, "workspace"))
+		cleanWorkdir(out.Dir)
 		update(out.Dir, func(st *State) {
 			st.CostUSD, st.Turns = out.CostUSD, out.Turns
 			if err != nil {
@@ -119,13 +81,11 @@ type UpdateOutcome struct {
 
 func (r *Runner) followUp(ctx context.Context, is linear.Issue, requester, request, ref, prURL, model string) (*UpdateOutcome, error) {
 	cfg := r.Cfg
-	stamp := time.Now().UTC().Format("20060102-150405")
-	slug := strings.Trim(unsafeName.ReplaceAllString(strings.ToLower(is.Identifier), "-"), "-")
-	dir := filepath.Join(cfg.StateDir, "jobs", slug+"-update-"+stamp)
-	repoDir, ws := filepath.Join(dir, "repo"), filepath.Join(dir, "workspace")
-	if err := os.MkdirAll(ws, 0o700); err != nil {
+	w, err := r.newWorkdir(is.Identifier, "update")
+	if err != nil {
 		return nil, err
 	}
+	dir, repoDir, ws, slug, stamp := w.dir, w.repo, w.ws, w.slug, w.stamp
 	out := &UpdateOutcome{Outcome: Outcome{Dir: dir}}
 	update(dir, func(st *State) {
 		st.Issue, st.Title, st.URL, st.Model = is.Identifier, "update: "+is.Title, is.URL, model
@@ -253,26 +213,4 @@ func (r *Runner) followUp(ctx context.Context, is linear.Issue, requester, reque
 		r.Log.Warn("cannot comment on the pull request", "err", err)
 	}
 	return out, nil
-}
-
-func (r *Runner) authorEnv() []string {
-	if r.Cfg.AuthorEmail == "" {
-		return nil
-	}
-	return []string{
-		"GIT_AUTHOR_NAME=" + r.Cfg.AuthorName, "GIT_AUTHOR_EMAIL=" + r.Cfg.AuthorEmail,
-		"GIT_COMMITTER_NAME=" + r.Cfg.AuthorName, "GIT_COMMITTER_EMAIL=" + r.Cfg.AuthorEmail,
-	}
-}
-
-func quote(s string) string {
-	return "> " + strings.ReplaceAll(strings.TrimSpace(s), "\n", "\n> ")
-}
-
-func firstSentence(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if i := strings.Index(s, ". "); i > 0 && i < 300 {
-		return s[:i+1]
-	}
-	return truncate(s, 300)
 }
