@@ -13,7 +13,7 @@ import (
 	"github.com/matbour/sandbox-agent/internal/gitops"
 	"github.com/matbour/sandbox-agent/internal/linear"
 	"github.com/matbour/sandbox-agent/internal/patch"
-	"github.com/matbour/sandbox-agent/internal/sbx"
+	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
 // agentResult is the subset of `claude -p --output-format json` the worker reads.
@@ -76,21 +76,25 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 
 	// Sandbox.
 	stage(ctx, dir, StageSetup)
-	if err := sbx.EnsureDaemon(ctx, cfg.CPUs); err != nil {
-		return ex, err
+	if err := r.Sandbox.Prepare(ctx); err != nil {
+		return ex, fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
 	}
-	sb, err := sbx.Create(ctx, "job-"+slug+"-"+strings.ReplaceAll(stamp, "-", ""), ws, sbx.Options{
+	sb, err := r.Sandbox.Start(ctx, sandbox.Spec{
+		Name: "job-" + slug + "-" + strings.ReplaceAll(stamp, "-", ""), Workspace: ws,
 		CPUs: cfg.SandboxCPUs, Memory: cfg.SandboxMemory, DenyNetwork: cfg.DenyNetwork,
 	})
 	if err != nil {
-		return ex, err
+		return ex, fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
 	}
-	update(dir, func(st *State) { st.Sandbox = sb.Name })
-	if err := sb.TrimCache(ctx, 20*time.Second); err != nil {
-		r.Log.Warn("cache trimmer", "err", err) // memory only: not worth failing the job
+	update(dir, func(st *State) { st.Sandbox, st.Provider = sb.Name(), r.Sandbox.Name() })
+	trimmer, _ := sb.(sandbox.CacheTrimmer)
+	if trimmer != nil {
+		if err := trimmer.TrimCache(ctx, 20*time.Second); err != nil {
+			r.Log.Warn("cache trimmer", "err", err) // memory only: not worth failing the job
+		}
 	}
 	defer func() {
-		if err := sb.RemoveHard(cfg.CPUs); err != nil {
+		if err := sb.Close(); err != nil {
 			r.Log.Warn("sandbox cleanup", "err", err)
 		}
 	}()
@@ -103,10 +107,12 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 			return ex, err
 		}
 		sctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-		so, se, err := sb.Exec(sctx, "", "bash", "-euo", "pipefail", "-c", string(script))
+		so, se, err := sb.Exec(sctx, sandbox.ExecOptions{}, "bash", "-euo", "pipefail", "-c", string(script))
 		cancel()
 		logf("setup.log", append(so, se...))
-		sb.DropCache(ctx) // the install read and wrote gigabytes
+		if trimmer != nil {
+			trimmer.DropCache(ctx) // the install read and wrote gigabytes
+		}
 		if err != nil {
 			return ex, fmt.Errorf("setup script: %w: %s", err, truncate(lastLines(string(se), 20), 2000))
 		}
@@ -133,7 +139,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		args = append(args, "--model", model)
 	}
 	actx, cancel := context.WithTimeout(ctx, cfg.AgentTimeout)
-	so, se, err := sb.Exec(actx, "", args...)
+	so, se, err := sb.Exec(actx, sandbox.ExecOptions{}, args...)
 	cancel()
 	logf("agent.json", so)
 	logf("agent.stderr", se)

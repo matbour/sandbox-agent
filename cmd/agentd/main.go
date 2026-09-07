@@ -19,6 +19,8 @@ import (
 	"github.com/matbour/sandbox-agent/internal/github"
 	"github.com/matbour/sandbox-agent/internal/job"
 	"github.com/matbour/sandbox-agent/internal/linear"
+	"github.com/matbour/sandbox-agent/internal/sandbox"
+	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
 	"github.com/matbour/sandbox-agent/internal/web"
 )
 
@@ -61,7 +63,11 @@ func main() {
 		if err != nil {
 			fail(log, "config", err)
 		}
-		r := &job.Runner{Cfg: cfg, Log: log}
+		sp, err := providers.New(cfg.Provider, sandbox.Options{CPUSet: cfg.CPUs})
+		if err != nil {
+			fail(log, "sandbox provider", err)
+		}
+		r := &job.Runner{Cfg: cfg, Log: log, Sandbox: sp}
 		m := cfg.AgentModel
 		if *model != "" {
 			m = *model
@@ -95,7 +101,11 @@ func main() {
 			fail(log, "state dir", err)
 		}
 	}
-	r := &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log}
+	sp, err := providers.New(cfg.Provider, sandbox.Options{CPUSet: cfg.CPUs})
+	if err != nil {
+		fail(log, "sandbox provider", err)
+	}
+	r := &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log, Sandbox: sp}
 
 	if *check {
 		if err := runCheck(ctx, r); err != nil {
@@ -174,7 +184,7 @@ func main() {
 			"access", cfg.AccessTeam != "")
 	}
 
-	log.Info("agentd started", "repo", cfg.Repo, "labels", cfg.Labels(), "default_model", cfg.AgentModel,
+	log.Info("agentd started", "sandbox", sp.Name(), "repo", cfg.Repo, "labels", cfg.Labels(), "default_model", cfg.AgentModel,
 		"teams", cfg.TeamKeys,
 		"every", cfg.PollInterval)
 	for {
@@ -301,4 +311,9 @@ func secretLines(s string) [][]byte {
 		}
 	}
 	return out
+}
+
+// providers are the sandbox implementations agentd can use (SANDBOX_PROVIDER).
+var providers = sandbox.Registry{
+	"sbx": sbx.New,
 }

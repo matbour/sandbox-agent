@@ -271,3 +271,19 @@ the host's own cache. `agentd` now starts a root loop in each VM that drops the 
 20 s, and drops it once after the setup script. Dropped pages go back to the host through free
 page reporting: measured 2.3 GB down to 0.8 GB within a few seconds after 1 GB of file I/O. The
 memory cap stays as a ceiling for build peaks; the real peak is still to be measured.
+
+## D30. Sandbox providers behind one interface (2026-11-13)
+
+`internal/sandbox` defines `Provider` (`Prepare`, `Start`) and `Sandbox` (`Exec`, `WorkDir`,
+`Close`), plus the optional `CacheTrimmer`. Each technology is a package under it; Docker Sandboxes
+moved to `internal/sandbox/sbx` unchanged. `SANDBOX_PROVIDER` picks one (`sbx` by default); the
+registry is explicit in `cmd/agentd`. Jobs record the provider in `state.json`.
+
+The contract is written in the package doc and checked by `internal/sandbox/sandboxtest`, a
+conformance suite that starts real sandboxes (`SANDBOX_IT=1`): shared workspace as working
+directory, unprivileged default user, environment passing, cancellation, no API key inside, host
+LAN address and cloud metadata unreachable, nothing left after `Close`. sbx passes it in 12.5 s
+(7 s to start). The same suite, then the escape tests, will compare providers.
+
+What sbx gives for free and other providers must rebuild: the image (Claude Code, Git, Python),
+key injection through a host proxy (the egress proxy of M4), and the network policy.

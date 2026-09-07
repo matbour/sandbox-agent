@@ -11,6 +11,7 @@ import (
 	"github.com/matbour/sandbox-agent/internal/config"
 	"github.com/matbour/sandbox-agent/internal/github"
 	"github.com/matbour/sandbox-agent/internal/linear"
+	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
 // Marker starts every comment the worker posts, so its own comments are not fed back to the agent.
@@ -18,10 +19,11 @@ const Marker = "🤖 sandbox-agent"
 
 // Runner holds what every job needs.
 type Runner struct {
-	Cfg    *config.Config
-	Linear *linear.Client
-	App    *github.App
-	Log    *slog.Logger
+	Sandbox sandbox.Provider // where the agent runs
+	Cfg     *config.Config
+	Linear  *linear.Client
+	App     *github.App
+	Log     *slog.Logger
 }
 
 func (r *Runner) authorEnv() []string {

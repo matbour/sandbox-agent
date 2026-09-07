@@ -43,6 +43,15 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [ ] Escape tests E-HOOK scripted.
 - [ ] End-to-end: label an issue, get a draft PR.
 
+## P: sandbox providers (from 2026-11-13)
+
+- [x] `internal/sandbox` interface, sbx moved behind it, conformance suite; sbx passes (D30).
+- [ ] gVisor provider (`internal/sandbox/gvisor`): `runsc` arm64 in the home directory, rootless
+      (needs an AppArmor profile with `userns,` installed by the owner, as for M2), rootfs from the
+      sbx `claude` image pulled without Docker, no network except a Unix socket to the egress
+      proxy (M4) that injects the key. Pass the conformance suite, then run a real issue.
+- [ ] Comparison table: start time, install time on the target monorepo, memory, escape tests.
+
 ## M1: Firecracker spike
 
 - [ ] Boot one microVM pinned to cores 4-7 (see [microvm.md](microvm.md)).

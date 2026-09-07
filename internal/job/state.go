@@ -41,6 +41,7 @@ type State struct {
 	Model    string     `json:"model"`
 	Stage    string     `json:"stage"`
 	Sandbox  string     `json:"sandbox,omitempty"`
+	Provider string     `json:"provider,omitempty"` // sandbox provider: sbx, gvisor, ...
 	PID      int        `json:"pid"`
 	Started  time.Time  `json:"started"`
 	Updated  time.Time  `json:"updated"`

@@ -35,6 +35,7 @@ type Config struct {
 	BaseBranch     string // empty: the repository's default branch
 	StateDir       string
 	SetupScript    string // optional, run as root in the sandbox before the agent
+	Provider       string // sandbox provider: sbx (default), ...
 	CPUs           string // host cores for the sbx daemon and its VMs
 	SandboxCPUs    int
 	SandboxMemory  string
@@ -195,6 +196,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		StateDir:       get("STATE_DIR", filepath.Join(home, ".local/state/sandbox-agent")),
 		SetupScript:    get("SETUP_SCRIPT", setupDefault),
 		CPUs:           get("CPUS", "4-7"),
+		Provider:       get("SANDBOX_PROVIDER", "sbx"),
 		SandboxMemory:  get("SANDBOX_MEMORY", "6g"),
 		AgentModel:     get("AGENT_MODEL", "claude-sonnet-5-5"),
 		RetryLabel:     get("RETRY_LABEL", "agent-opus"),

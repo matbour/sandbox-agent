@@ -1,4 +1,5 @@
-// Package sbx drives Docker Sandboxes (the sbx CLI). See docs/docker-sandboxes.md.
+// Package sbx is the Docker Sandboxes provider (the sbx CLI): one KVM microVM per sandbox, egress
+// through a host proxy that injects the API key. See docs/docker-sandboxes.md.
 package sbx
 
 import (
@@ -12,12 +13,51 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
 // Sandbox is one microVM created for one job.
 type Sandbox struct {
-	Name      string
-	Workspace string
+	name      string
+	workspace string
+	cpus      string // host cores the daemon is pinned to, for RemoveHard
+}
+
+// Name returns the sandbox name.
+func (s *Sandbox) Name() string { return s.name }
+
+// WorkDir is the workspace path inside the VM: sbx mounts it at the same path as on the host.
+func (s *Sandbox) WorkDir() string { return s.workspace }
+
+// Close removes the sandbox, restarting the daemon if sbx left it half-deleted.
+func (s *Sandbox) Close() error { return s.RemoveHard(s.cpus) }
+
+// Provider starts Docker Sandboxes.
+type Provider struct{ CPUSet string }
+
+// New builds the provider.
+func New(o sandbox.Options) (sandbox.Provider, error) {
+	if o.CPUSet == "" {
+		return nil, fmt.Errorf("sbx: a CPU set is required (CPUS)")
+	}
+	return &Provider{CPUSet: o.CPUSet}, nil
+}
+
+// Name returns "sbx".
+func (p *Provider) Name() string { return "sbx" }
+
+// Prepare makes sure the sbx daemon runs pinned to the CPU set, so the VMs inherit it.
+func (p *Provider) Prepare(ctx context.Context) error { return EnsureDaemon(ctx, p.CPUSet) }
+
+// Start creates a Claude sandbox on the workspace.
+func (p *Provider) Start(ctx context.Context, sp sandbox.Spec) (sandbox.Sandbox, error) {
+	sb, err := Create(ctx, sp.Name, sp.Workspace, Options{CPUs: sp.CPUs, Memory: sp.Memory, DenyNetwork: sp.DenyNetwork})
+	if err != nil {
+		return nil, err
+	}
+	sb.cpus = p.CPUSet
+	return sb, nil
 }
 
 // Options for Create.
@@ -44,23 +84,30 @@ func Create(ctx context.Context, name, workspace string, o Options) (*Sandbox, e
 	if out, err := run(ctx, nil, args...); err != nil {
 		return nil, fmt.Errorf("sbx create: %w: %s", err, tail(out))
 	}
-	return &Sandbox{Name: name, Workspace: workspace}, nil
+	return &Sandbox{name: name, workspace: workspace}, nil
 }
 
-// Exec runs argv in the sandbox, in the workspace, and returns stdout and stderr.
-func (s *Sandbox) Exec(ctx context.Context, user string, argv ...string) (stdout, stderr []byte, err error) {
-	args := []string{"exec", "-w", s.Workspace}
-	if user != "" {
-		args = append(args, "-u", user)
+// Exec runs argv in the sandbox and returns stdout and stderr.
+func (s *Sandbox) Exec(ctx context.Context, o sandbox.ExecOptions, argv ...string) (stdout, stderr []byte, err error) {
+	dir := o.Dir
+	if dir == "" {
+		dir = s.workspace
 	}
-	args = append(args, s.Name)
+	args := []string{"exec", "-w", dir}
+	if o.User != "" {
+		args = append(args, "-u", o.User)
+	}
+	for _, e := range o.Env {
+		args = append(args, "-e", e)
+	}
+	args = append(args, s.name)
 	args = append(args, argv...)
 	cmd := exec.CommandContext(ctx, "sbx", args...)
-	var o, e bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &o, &e
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
 	cmd.WaitDelay = 10 * time.Second
 	err = cmd.Run()
-	return o.Bytes(), e.Bytes(), err
+	return out.Bytes(), errb.Bytes(), err
 }
 
 // TrimCache starts a loop, as root in the VM, that drops the guest's page cache every interval.
@@ -69,7 +116,7 @@ func (s *Sandbox) Exec(ctx context.Context, user string, argv ...string) (stdout
 // through free page reporting within a second. Measured: 2.3 GB down to 0.8 GB after 1 GB of I/O.
 func (s *Sandbox) TrimCache(ctx context.Context, interval time.Duration) error {
 	loop := fmt.Sprintf("while :; do sleep %d; sync; echo 1 > /proc/sys/vm/drop_caches; done", int(interval.Seconds()))
-	_, se, err := s.Exec(ctx, "root", "sh", "-c", "nohup sh -c '"+loop+"' </dev/null >/dev/null 2>&1 &")
+	_, se, err := s.Exec(ctx, sandbox.ExecOptions{User: "root"}, "sh", "-c", "nohup sh -c '"+loop+"' </dev/null >/dev/null 2>&1 &")
 	if err != nil {
 		return fmt.Errorf("start cache trimmer: %w: %s", err, tail(se))
 	}
@@ -78,14 +125,14 @@ func (s *Sandbox) TrimCache(ctx context.Context, interval time.Duration) error {
 
 // DropCache drops the guest's page cache once (after an install, for example).
 func (s *Sandbox) DropCache(ctx context.Context) {
-	_, _, _ = s.Exec(ctx, "root", "sh", "-c", "sync; echo 1 > /proc/sys/vm/drop_caches")
+	_, _, _ = s.Exec(ctx, sandbox.ExecOptions{User: "root"}, "sh", "-c", "sync; echo 1 > /proc/sys/vm/drop_caches")
 }
 
 // Remove destroys the sandbox. It uses a fresh context so it runs even after a timeout.
 func (s *Sandbox) Remove() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	out, err := run(ctx, nil, "rm", "--force", s.Name)
+	out, err := run(ctx, nil, "rm", "--force", s.name)
 	if err != nil {
 		return fmt.Errorf("sbx rm: %w: %s", err, tail(out))
 	}
@@ -195,3 +242,9 @@ func tail(b []byte) string {
 	}
 	return s
 }
+
+var (
+	_ sandbox.Provider     = (*Provider)(nil)
+	_ sandbox.Sandbox      = (*Sandbox)(nil)
+	_ sandbox.CacheTrimmer = (*Sandbox)(nil)
+)
