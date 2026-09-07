@@ -53,61 +53,12 @@ type Config struct {
 	MaxPatchBytes  int
 }
 
-// Secrets directory layout (at the repository root by default, ignored by Git):
-//
-//	secrets/config.env       non-secret settings that name private things (KEY=VALUE)
-//	secrets/linear-client-id, linear-client-secret  Linear OAuth application (client credentials)
-//	secrets/linear-api-key   Linear personal API key, used if the application is not set
-//	secrets/linear-webhook-secret  signing secret of the Linear webhook (optional)
-//	secrets/github-app.pem   GitHub App private key
-//	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
-//
-// The directory and every file read from it must not be accessible to group or others.
-const (
-	ConfigFile     = "config.env"
-	LinearKeyFile  = "linear-api-key"
-	LinearIDFile   = "linear-client-id"
-	LinearSecFile  = "linear-client-secret"
-	LinearHookFile = "linear-webhook-secret"
-	GitHubKeyFile  = "github-app.pem"
-	SetupFile      = "setup.sh"
-)
-
 // Load reads the secrets directory, lets the environment override settings, and requires the
 // Linear and GitHub settings.
 func Load(secretsDir string) (*Config, error) { return load(secretsDir, true) }
 
 // LoadPartial is Load without the Linear and GitHub requirements, for local runs.
 func LoadPartial(secretsDir string) (*Config, error) { return load(secretsDir, false) }
-
-// CheckPrivate fails if path is accessible to group or others.
-func CheckPrivate(path string) error {
-	st, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if st.Mode().Perm()&0o077 != 0 {
-		want := "0600"
-		if st.IsDir() {
-			want = "0700"
-		}
-		return fmt.Errorf("%s has mode %04o: run chmod %s %s", path, st.Mode().Perm(), want, path)
-	}
-	return nil
-}
-
-// readSecret returns the trimmed content of dir/name, or "" if it does not exist.
-func readSecret(dir, name string) (string, error) {
-	p := filepath.Join(dir, name)
-	if _, err := os.Stat(p); os.IsNotExist(err) {
-		return "", nil
-	}
-	if err := CheckPrivate(p); err != nil {
-		return "", err
-	}
-	b, err := os.ReadFile(p)
-	return strings.TrimSpace(string(b)), err
-}
 
 func load(secretsDir string, full bool) (*Config, error) {
 	vals := map[string]string{}
@@ -274,71 +225,4 @@ func list(s string) []string {
 		}
 	}
 	return out
-}
-
-func fileExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && !st.IsDir()
-}
-
-// ModelLabel maps a Linear label to the model it selects.
-type ModelLabel struct {
-	Label string
-	Model string
-}
-
-// DefaultModelLabels lists the explicit model labels, from the lightest to the strongest.
-const DefaultModelLabels = "agent-haiku=claude-haiku-5-5,agent-sonnet=claude-sonnet-5-5," +
-	"agent-opus=claude-opus-5-5,agent-fable=claude-fable-5-2"
-
-func parseModelLabels(s string) ([]ModelLabel, error) {
-	var out []ModelLabel
-	for _, item := range list(s) {
-		label, model, ok := strings.Cut(item, "=")
-		label, model = strings.TrimSpace(label), strings.TrimSpace(model)
-		if !ok || label == "" || model == "" {
-			return nil, fmt.Errorf("expected label=model, got %q", item)
-		}
-		out = append(out, ModelLabel{Label: label, Model: model})
-	}
-	return out, nil
-}
-
-// Labels returns every label that triggers a job: the default one, then the model labels.
-func (c *Config) Labels() []string {
-	labels := []string{c.TriggerLabel}
-	for _, m := range c.ModelLabels {
-		labels = append(labels, m.Label)
-	}
-	return labels
-}
-
-// ModelFor returns the model selected by an issue's labels: the strongest explicit model label,
-// else AgentModel. ok is false if no trigger label is present.
-func (c *Config) ModelFor(labels []string) (model string, ok bool) {
-	best := -1
-	for _, l := range labels {
-		if strings.EqualFold(l, c.TriggerLabel) {
-			ok = true
-		}
-		for i, m := range c.ModelLabels {
-			if strings.EqualFold(l, m.Label) && i > best {
-				best, ok = i, true
-			}
-		}
-	}
-	if best >= 0 {
-		return c.ModelLabels[best].Model, true
-	}
-	return c.AgentModel, ok
-}
-
-// IsTrigger reports whether label is one of the labels that start a job.
-func (c *Config) IsTrigger(label string) bool {
-	for _, l := range c.Labels() {
-		if strings.EqualFold(l, label) {
-			return true
-		}
-	}
-	return false
 }

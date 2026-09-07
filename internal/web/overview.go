@@ -3,9 +3,9 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/matbour/sandbox-agent/internal/job"
