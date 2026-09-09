@@ -56,6 +56,94 @@ type AssignResponse struct {
 // GetIssueUpdate returns AssignResponse.IssueUpdate, and is useful for accessing the field via an interface.
 func (v *AssignResponse) GetIssueUpdate() AssignIssueUpdateIssuePayload { return v.IssueUpdate }
 
+// CommentFields includes the GraphQL fields of Comment requested by the fragment CommentFields.
+// The GraphQL type's documentation follows.
+//
+// A message in a discussion on an issue, document, project, initiative, or update. A thread consists of a root comment and replies whose parent points to that root. Resolution belongs to the root comment; replies do not form additional nested threads.
+type CommentFields struct {
+	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
+	Id string `json:"id"`
+	// The comment’s content as Markdown. This is the message text; quotedText, when present, identifies the separate passage being discussed.
+	Body string `json:"body"`
+	// The resource’s recorded creation time, in UTC. Imports may preserve an earlier creation time.
+	CreatedAt time.Time `json:"createdAt"`
+	// The Linear user who wrote the comment. Null if no user is recorded or the account was deleted.
+	User *CommentFieldsUser `json:"user"`
+}
+
+// GetId returns CommentFields.Id, and is useful for accessing the field via an interface.
+func (v *CommentFields) GetId() string { return v.Id }
+
+// GetBody returns CommentFields.Body, and is useful for accessing the field via an interface.
+func (v *CommentFields) GetBody() string { return v.Body }
+
+// GetCreatedAt returns CommentFields.CreatedAt, and is useful for accessing the field via an interface.
+func (v *CommentFields) GetCreatedAt() time.Time { return v.CreatedAt }
+
+// GetUser returns CommentFields.User, and is useful for accessing the field via an interface.
+func (v *CommentFields) GetUser() *CommentFieldsUser { return v.User }
+
+// CommentFieldsUser includes the requested fields of the GraphQL type User.
+// The GraphQL type's documentation follows.
+//
+// A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
+type CommentFieldsUser struct {
+	PersonFields `json:"-"`
+}
+
+// GetId returns CommentFieldsUser.Id, and is useful for accessing the field via an interface.
+func (v *CommentFieldsUser) GetId() string { return v.PersonFields.Id }
+
+// GetName returns CommentFieldsUser.Name, and is useful for accessing the field via an interface.
+func (v *CommentFieldsUser) GetName() string { return v.PersonFields.Name }
+
+func (v *CommentFieldsUser) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*CommentFieldsUser
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.CommentFieldsUser = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.PersonFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalCommentFieldsUser struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *CommentFieldsUser) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *CommentFieldsUser) __premarshalJSON() (*__premarshalCommentFieldsUser, error) {
+	var retval __premarshalCommentFieldsUser
+
+	retval.Id = v.PersonFields.Id
+	retval.Name = v.PersonFields.Name
+	return &retval, nil
+}
+
 // CommentsSinceCommentsCommentConnection includes the requested fields of the GraphQL type CommentConnection.
 // The GraphQL type's documentation follows.
 //
@@ -75,37 +163,90 @@ func (v *CommentsSinceCommentsCommentConnection) GetNodes() []CommentsSinceComme
 //
 // A message in a discussion on an issue, document, project, initiative, or update. A thread consists of a root comment and replies whose parent points to that root. Resolution belongs to the root comment; replies do not form additional nested threads.
 type CommentsSinceCommentsCommentConnectionNodesComment struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The comment’s content as Markdown. This is the message text; quotedText, when present, identifies the separate passage being discussed.
-	Body string `json:"body"`
-	// The resource’s recorded creation time, in UTC. Imports may preserve an earlier creation time.
-	CreatedAt time.Time `json:"createdAt"`
-	// The Linear user who wrote the comment. Null if no user is recorded or the account was deleted.
-	User *CommentsSinceCommentsCommentConnectionNodesCommentUser `json:"user"`
+	CommentFields `json:"-"`
 	// The issue that the comment is associated with. Null if the comment belongs to a different parent entity type.
 	Issue *CommentsSinceCommentsCommentConnectionNodesCommentIssue `json:"issue"`
-}
-
-// GetId returns CommentsSinceCommentsCommentConnectionNodesComment.Id, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetId() string { return v.Id }
-
-// GetBody returns CommentsSinceCommentsCommentConnectionNodesComment.Body, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetBody() string { return v.Body }
-
-// GetCreatedAt returns CommentsSinceCommentsCommentConnectionNodesComment.CreatedAt, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetCreatedAt() time.Time {
-	return v.CreatedAt
-}
-
-// GetUser returns CommentsSinceCommentsCommentConnectionNodesComment.User, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetUser() *CommentsSinceCommentsCommentConnectionNodesCommentUser {
-	return v.User
 }
 
 // GetIssue returns CommentsSinceCommentsCommentConnectionNodesComment.Issue, and is useful for accessing the field via an interface.
 func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetIssue() *CommentsSinceCommentsCommentConnectionNodesCommentIssue {
 	return v.Issue
+}
+
+// GetId returns CommentsSinceCommentsCommentConnectionNodesComment.Id, and is useful for accessing the field via an interface.
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetId() string {
+	return v.CommentFields.Id
+}
+
+// GetBody returns CommentsSinceCommentsCommentConnectionNodesComment.Body, and is useful for accessing the field via an interface.
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetBody() string {
+	return v.CommentFields.Body
+}
+
+// GetCreatedAt returns CommentsSinceCommentsCommentConnectionNodesComment.CreatedAt, and is useful for accessing the field via an interface.
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetCreatedAt() time.Time {
+	return v.CommentFields.CreatedAt
+}
+
+// GetUser returns CommentsSinceCommentsCommentConnectionNodesComment.User, and is useful for accessing the field via an interface.
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) GetUser() *CommentFieldsUser {
+	return v.CommentFields.User
+}
+
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*CommentsSinceCommentsCommentConnectionNodesComment
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.CommentsSinceCommentsCommentConnectionNodesComment = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.CommentFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalCommentsSinceCommentsCommentConnectionNodesComment struct {
+	Issue *CommentsSinceCommentsCommentConnectionNodesCommentIssue `json:"issue"`
+
+	Id string `json:"id"`
+
+	Body string `json:"body"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	User *CommentFieldsUser `json:"user"`
+}
+
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *CommentsSinceCommentsCommentConnectionNodesComment) __premarshalJSON() (*__premarshalCommentsSinceCommentsCommentConnectionNodesComment, error) {
+	var retval __premarshalCommentsSinceCommentsCommentConnectionNodesComment
+
+	retval.Issue = v.Issue
+	retval.Id = v.CommentFields.Id
+	retval.Body = v.CommentFields.Body
+	retval.CreatedAt = v.CommentFields.CreatedAt
+	retval.User = v.CommentFields.User
+	return &retval, nil
 }
 
 // CommentsSinceCommentsCommentConnectionNodesCommentIssue includes the requested fields of the GraphQL type Issue.
@@ -244,23 +385,6 @@ func (v *CommentsSinceCommentsCommentConnectionNodesCommentIssue) __premarshalJS
 	retval.Comments = v.IssueFields.Comments
 	return &retval, nil
 }
-
-// CommentsSinceCommentsCommentConnectionNodesCommentUser includes the requested fields of the GraphQL type User.
-// The GraphQL type's documentation follows.
-//
-// A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
-type CommentsSinceCommentsCommentConnectionNodesCommentUser struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The user's full name.
-	Name string `json:"name"`
-}
-
-// GetId returns CommentsSinceCommentsCommentConnectionNodesCommentUser.Id, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesCommentUser) GetId() string { return v.Id }
-
-// GetName returns CommentsSinceCommentsCommentConnectionNodesCommentUser.Name, and is useful for accessing the field via an interface.
-func (v *CommentsSinceCommentsCommentConnectionNodesCommentUser) GetName() string { return v.Name }
 
 // CommentsSinceResponse is returned by CommentsSince on success.
 type CommentsSinceResponse struct {
@@ -516,17 +640,61 @@ func (v *IssueFields) GetComments() IssueFieldsCommentsCommentConnection { retur
 //
 // A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
 type IssueFieldsAssigneeUser struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The user's full name.
-	Name string `json:"name"`
+	PersonFields `json:"-"`
 }
 
 // GetId returns IssueFieldsAssigneeUser.Id, and is useful for accessing the field via an interface.
-func (v *IssueFieldsAssigneeUser) GetId() string { return v.Id }
+func (v *IssueFieldsAssigneeUser) GetId() string { return v.PersonFields.Id }
 
 // GetName returns IssueFieldsAssigneeUser.Name, and is useful for accessing the field via an interface.
-func (v *IssueFieldsAssigneeUser) GetName() string { return v.Name }
+func (v *IssueFieldsAssigneeUser) GetName() string { return v.PersonFields.Name }
+
+func (v *IssueFieldsAssigneeUser) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*IssueFieldsAssigneeUser
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.IssueFieldsAssigneeUser = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.PersonFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalIssueFieldsAssigneeUser struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *IssueFieldsAssigneeUser) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *IssueFieldsAssigneeUser) __premarshalJSON() (*__premarshalIssueFieldsAssigneeUser, error) {
+	var retval __premarshalIssueFieldsAssigneeUser
+
+	retval.Id = v.PersonFields.Id
+	retval.Name = v.PersonFields.Name
+	return &retval, nil
+}
 
 // IssueFieldsCommentsCommentConnection includes the requested fields of the GraphQL type CommentConnection.
 // The GraphQL type's documentation follows.
@@ -547,65 +715,201 @@ func (v *IssueFieldsCommentsCommentConnection) GetNodes() []IssueFieldsCommentsC
 //
 // A message in a discussion on an issue, document, project, initiative, or update. A thread consists of a root comment and replies whose parent points to that root. Resolution belongs to the root comment; replies do not form additional nested threads.
 type IssueFieldsCommentsCommentConnectionNodesComment struct {
-	// The comment’s content as Markdown. This is the message text; quotedText, when present, identifies the separate passage being discussed.
-	Body string `json:"body"`
-	// The Linear user who wrote the comment. Null if no user is recorded or the account was deleted.
-	User *IssueFieldsCommentsCommentConnectionNodesCommentUser `json:"user"`
+	CommentFields `json:"-"`
 }
+
+// GetId returns IssueFieldsCommentsCommentConnectionNodesComment.Id, and is useful for accessing the field via an interface.
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetId() string { return v.CommentFields.Id }
 
 // GetBody returns IssueFieldsCommentsCommentConnectionNodesComment.Body, and is useful for accessing the field via an interface.
-func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetBody() string { return v.Body }
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetBody() string {
+	return v.CommentFields.Body
+}
+
+// GetCreatedAt returns IssueFieldsCommentsCommentConnectionNodesComment.CreatedAt, and is useful for accessing the field via an interface.
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetCreatedAt() time.Time {
+	return v.CommentFields.CreatedAt
+}
 
 // GetUser returns IssueFieldsCommentsCommentConnectionNodesComment.User, and is useful for accessing the field via an interface.
-func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetUser() *IssueFieldsCommentsCommentConnectionNodesCommentUser {
-	return v.User
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) GetUser() *CommentFieldsUser {
+	return v.CommentFields.User
 }
 
-// IssueFieldsCommentsCommentConnectionNodesCommentUser includes the requested fields of the GraphQL type User.
-// The GraphQL type's documentation follows.
-//
-// A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
-type IssueFieldsCommentsCommentConnectionNodesCommentUser struct {
-	// The user's full name.
-	Name string `json:"name"`
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*IssueFieldsCommentsCommentConnectionNodesComment
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.IssueFieldsCommentsCommentConnectionNodesComment = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.CommentFields)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-// GetName returns IssueFieldsCommentsCommentConnectionNodesCommentUser.Name, and is useful for accessing the field via an interface.
-func (v *IssueFieldsCommentsCommentConnectionNodesCommentUser) GetName() string { return v.Name }
+type __premarshalIssueFieldsCommentsCommentConnectionNodesComment struct {
+	Id string `json:"id"`
+
+	Body string `json:"body"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	User *CommentFieldsUser `json:"user"`
+}
+
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *IssueFieldsCommentsCommentConnectionNodesComment) __premarshalJSON() (*__premarshalIssueFieldsCommentsCommentConnectionNodesComment, error) {
+	var retval __premarshalIssueFieldsCommentsCommentConnectionNodesComment
+
+	retval.Id = v.CommentFields.Id
+	retval.Body = v.CommentFields.Body
+	retval.CreatedAt = v.CommentFields.CreatedAt
+	retval.User = v.CommentFields.User
+	return &retval, nil
+}
 
 // IssueFieldsCreatorUser includes the requested fields of the GraphQL type User.
 // The GraphQL type's documentation follows.
 //
 // A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
 type IssueFieldsCreatorUser struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The user's full name.
-	Name string `json:"name"`
+	PersonFields `json:"-"`
 }
 
 // GetId returns IssueFieldsCreatorUser.Id, and is useful for accessing the field via an interface.
-func (v *IssueFieldsCreatorUser) GetId() string { return v.Id }
+func (v *IssueFieldsCreatorUser) GetId() string { return v.PersonFields.Id }
 
 // GetName returns IssueFieldsCreatorUser.Name, and is useful for accessing the field via an interface.
-func (v *IssueFieldsCreatorUser) GetName() string { return v.Name }
+func (v *IssueFieldsCreatorUser) GetName() string { return v.PersonFields.Name }
+
+func (v *IssueFieldsCreatorUser) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*IssueFieldsCreatorUser
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.IssueFieldsCreatorUser = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.PersonFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalIssueFieldsCreatorUser struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *IssueFieldsCreatorUser) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *IssueFieldsCreatorUser) __premarshalJSON() (*__premarshalIssueFieldsCreatorUser, error) {
+	var retval __premarshalIssueFieldsCreatorUser
+
+	retval.Id = v.PersonFields.Id
+	retval.Name = v.PersonFields.Name
+	return &retval, nil
+}
 
 // IssueFieldsDelegateUser includes the requested fields of the GraphQL type User.
 // The GraphQL type's documentation follows.
 //
 // A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
 type IssueFieldsDelegateUser struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The user's full name.
-	Name string `json:"name"`
+	PersonFields `json:"-"`
 }
 
 // GetId returns IssueFieldsDelegateUser.Id, and is useful for accessing the field via an interface.
-func (v *IssueFieldsDelegateUser) GetId() string { return v.Id }
+func (v *IssueFieldsDelegateUser) GetId() string { return v.PersonFields.Id }
 
 // GetName returns IssueFieldsDelegateUser.Name, and is useful for accessing the field via an interface.
-func (v *IssueFieldsDelegateUser) GetName() string { return v.Name }
+func (v *IssueFieldsDelegateUser) GetName() string { return v.PersonFields.Name }
+
+func (v *IssueFieldsDelegateUser) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*IssueFieldsDelegateUser
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.IssueFieldsDelegateUser = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.PersonFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalIssueFieldsDelegateUser struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *IssueFieldsDelegateUser) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *IssueFieldsDelegateUser) __premarshalJSON() (*__premarshalIssueFieldsDelegateUser, error) {
+	var retval __premarshalIssueFieldsDelegateUser
+
+	retval.Id = v.PersonFields.Id
+	retval.Name = v.PersonFields.Name
+	return &retval, nil
+}
 
 // IssueFieldsLabelsIssueLabelConnection includes the requested fields of the GraphQL type IssueLabelConnection.
 // The GraphQL type's documentation follows.
@@ -626,17 +930,65 @@ func (v *IssueFieldsLabelsIssueLabelConnection) GetNodes() []IssueFieldsLabelsIs
 //
 // A label for categorizing issues, such as Bug or Customer request. Labels can be available across the workspace or limited to a team, and can belong to groups that control whether one or several labels may be selected. Inherited labels are managed at their workspace or parent-team source.
 type IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The label's name.
-	Name string `json:"name"`
+	LabelFields `json:"-"`
 }
 
 // GetId returns IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel.Id, and is useful for accessing the field via an interface.
-func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) GetId() string { return v.Id }
+func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) GetId() string {
+	return v.LabelFields.Id
+}
 
 // GetName returns IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel.Name, and is useful for accessing the field via an interface.
-func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) GetName() string { return v.Name }
+func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) GetName() string {
+	return v.LabelFields.Name
+}
+
+func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.LabelFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalIssueFieldsLabelsIssueLabelConnectionNodesIssueLabel struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *IssueFieldsLabelsIssueLabelConnectionNodesIssueLabel) __premarshalJSON() (*__premarshalIssueFieldsLabelsIssueLabelConnectionNodesIssueLabel, error) {
+	var retval __premarshalIssueFieldsLabelsIssueLabelConnectionNodesIssueLabel
+
+	retval.Id = v.LabelFields.Id
+	retval.Name = v.LabelFields.Name
+	return &retval, nil
+}
 
 // IssueFieldsTeam includes the requested fields of the GraphQL type Team.
 // The GraphQL type's documentation follows.
@@ -806,6 +1158,40 @@ type IssuesWithLabelResponse struct {
 // GetIssues returns IssuesWithLabelResponse.Issues, and is useful for accessing the field via an interface.
 func (v *IssuesWithLabelResponse) GetIssues() IssuesWithLabelIssuesIssueConnection { return v.Issues }
 
+// LabelFields includes the GraphQL fields of IssueLabel requested by the fragment LabelFields.
+// The GraphQL type's documentation follows.
+//
+// A label for categorizing issues, such as Bug or Customer request. Labels can be available across the workspace or limited to a team, and can belong to groups that control whether one or several labels may be selected. Inherited labels are managed at their workspace or parent-team source.
+type LabelFields struct {
+	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
+	Id string `json:"id"`
+	// The label's name.
+	Name string `json:"name"`
+}
+
+// GetId returns LabelFields.Id, and is useful for accessing the field via an interface.
+func (v *LabelFields) GetId() string { return v.Id }
+
+// GetName returns LabelFields.Name, and is useful for accessing the field via an interface.
+func (v *LabelFields) GetName() string { return v.Name }
+
+// PersonFields includes the GraphQL fields of User requested by the fragment PersonFields.
+// The GraphQL type's documentation follows.
+//
+// A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
+type PersonFields struct {
+	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
+	Id string `json:"id"`
+	// The user's full name.
+	Name string `json:"name"`
+}
+
+// GetId returns PersonFields.Id, and is useful for accessing the field via an interface.
+func (v *PersonFields) GetId() string { return v.Id }
+
+// GetName returns PersonFields.Name, and is useful for accessing the field via an interface.
+func (v *PersonFields) GetName() string { return v.Name }
+
 // SetLabelsIssueUpdateIssuePayload includes the requested fields of the GraphQL type IssuePayload.
 // The GraphQL type's documentation follows.
 //
@@ -841,17 +1227,61 @@ func (v *ViewerResponse) GetViewer() ViewerViewerUser { return v.Viewer }
 //
 // A person or application account in a workspace. Workspace roles and team memberships determine which data the account can access; guests are limited to teams they join. Use viewer to identify the account making the current request, including application accounts.
 type ViewerViewerUser struct {
-	// The resource's unique UUID. This stays unchanged when the resource is renamed or moved; use it for stored references and mutations.
-	Id string `json:"id"`
-	// The user's full name.
-	Name string `json:"name"`
+	PersonFields `json:"-"`
 }
 
 // GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUser) GetId() string { return v.Id }
+func (v *ViewerViewerUser) GetId() string { return v.PersonFields.Id }
 
 // GetName returns ViewerViewerUser.Name, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUser) GetName() string { return v.Name }
+func (v *ViewerViewerUser) GetName() string { return v.PersonFields.Name }
+
+func (v *ViewerViewerUser) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ViewerViewerUser
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ViewerViewerUser = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.PersonFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalViewerViewerUser struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *ViewerViewerUser) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ViewerViewerUser) __premarshalJSON() (*__premarshalViewerViewerUser, error) {
+	var retval __premarshalViewerViewerUser
+
+	retval.Id = v.PersonFields.Id
+	retval.Name = v.PersonFields.Name
+	return &retval, nil
+}
 
 // __AddAgentSessionLinkInput is used internally by genqlient
 type __AddAgentSessionLinkInput struct {
@@ -1028,17 +1458,19 @@ const CommentsSince_Operation = `
 query CommentsSince ($since: DateTimeOrDuration!, $text: String!) {
 	comments(first: 50, orderBy: createdAt, filter: {createdAt:{gt:$since},body:{containsIgnoreCase:$text}}) {
 		nodes {
-			id
-			body
-			createdAt
-			user {
-				id
-				name
-			}
+			... CommentFields
 			issue {
 				... IssueFields
 			}
 		}
+	}
+}
+fragment CommentFields on Comment {
+	id
+	body
+	createdAt
+	user {
+		... PersonFields
 	}
 }
 fragment IssueFields on Issue {
@@ -1051,31 +1483,32 @@ fragment IssueFields on Issue {
 		key
 	}
 	creator {
-		id
-		name
+		... PersonFields
 	}
 	assignee {
-		id
-		name
+		... PersonFields
 	}
 	delegate {
-		id
-		name
+		... PersonFields
 	}
 	labels {
 		nodes {
-			id
-			name
+			... LabelFields
 		}
 	}
 	comments(first: 50) {
 		nodes {
-			body
-			user {
-				name
-			}
+			... CommentFields
 		}
 	}
+}
+fragment PersonFields on User {
+	id
+	name
+}
+fragment LabelFields on IssueLabel {
+	id
+	name
 }
 `
 
@@ -1197,30 +1630,39 @@ fragment IssueFields on Issue {
 		key
 	}
 	creator {
-		id
-		name
+		... PersonFields
 	}
 	assignee {
-		id
-		name
+		... PersonFields
 	}
 	delegate {
-		id
-		name
+		... PersonFields
 	}
 	labels {
 		nodes {
-			id
-			name
+			... LabelFields
 		}
 	}
 	comments(first: 50) {
 		nodes {
-			body
-			user {
-				name
-			}
+			... CommentFields
 		}
+	}
+}
+fragment PersonFields on User {
+	id
+	name
+}
+fragment LabelFields on IssueLabel {
+	id
+	name
+}
+fragment CommentFields on Comment {
+	id
+	body
+	createdAt
+	user {
+		... PersonFields
 	}
 }
 `
@@ -1269,30 +1711,39 @@ fragment IssueFields on Issue {
 		key
 	}
 	creator {
-		id
-		name
+		... PersonFields
 	}
 	assignee {
-		id
-		name
+		... PersonFields
 	}
 	delegate {
-		id
-		name
+		... PersonFields
 	}
 	labels {
 		nodes {
-			id
-			name
+			... LabelFields
 		}
 	}
 	comments(first: 50) {
 		nodes {
-			body
-			user {
-				name
-			}
+			... CommentFields
 		}
+	}
+}
+fragment PersonFields on User {
+	id
+	name
+}
+fragment LabelFields on IssueLabel {
+	id
+	name
+}
+fragment CommentFields on Comment {
+	id
+	body
+	createdAt
+	user {
+		... PersonFields
 	}
 }
 `
@@ -1362,9 +1813,12 @@ func SetLabels(
 const Viewer_Operation = `
 query Viewer {
 	viewer {
-		id
-		name
+		... PersonFields
 	}
+}
+fragment PersonFields on User {
+	id
+	name
 }
 `
 

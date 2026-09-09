@@ -64,8 +64,8 @@ func TestMapping(t *testing.T) {
 	c := New("id", "sec", "")
 	c.endpoint, c.tokenURL = srv.URL+"/graphql", srv.URL+"/oauth/token"
 	ctx := context.Background()
-	if id, name, err := c.Me(ctx); err != nil || id != "u1" || name != "Sandbox Agent" {
-		t.Fatalf("me: %s %s %v", id, name, err)
+	if me, err := c.Me(ctx); err != nil || me.ID != "u1" || me.Name != "Sandbox Agent" {
+		t.Fatalf("me: %+v %v", me, err)
 	}
 	if (*reqs)[0].Auth != "Bearer tok1" {
 		t.Errorf("application token not sent: %q", (*reqs)[0].Auth)
@@ -74,9 +74,9 @@ func TestMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if is.Identifier != "ENG-1" || is.Description != "" || is.Team.Key != "ENG" || is.Creator.ID != "u2" ||
-		is.Assignee != nil || is.Delegate.ID != "u1" || is.Labels.Nodes[0].Name != "agent" ||
-		is.Comments.Nodes[0].Body != "hi" || is.Comments.Nodes[0].User != nil {
+	if is.Identifier != "ENG-1" || is.Description != "" || is.TeamKey != "ENG" || is.Creator.ID != "u2" ||
+		is.Assignee != nil || is.Delegate.ID != "u1" || is.Labels[0].Name != "agent" ||
+		is.Comments[0].Body != "hi" || is.Comments[0].Author != nil {
 		t.Errorf("mapping: %+v", is)
 	}
 	if err := c.Reply(ctx, "i1", "c9", "hello"); err != nil {
@@ -100,7 +100,7 @@ func TestAppTokenRetriesOn401(t *testing.T) {
 	defer srv.Close()
 	c := New("id", "sec", t.TempDir()+"/token.json")
 	c.endpoint, c.tokenURL = srv.URL+"/graphql", srv.URL+"/oauth/token"
-	if _, _, err := c.Me(context.Background()); err != nil {
+	if _, err := c.Me(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if *minted != 2 || len(*reqs) != 2 || (*reqs)[0].Auth != "Bearer tok1" || (*reqs)[1].Auth != "Bearer tok2" {

@@ -61,13 +61,13 @@ func serve(ctx context.Context, r *job.Runner, once bool) error {
 // initMentions reads the agent's Linear identity, needed to recognise mentions and its own
 // comments. Without it, mentions are disabled but the rest works.
 func (d *daemon) initMentions(ctx context.Context) {
-	id, name, err := d.r.Linear.Me(ctx)
+	me, err := d.r.Linear.Me(ctx)
 	if err != nil {
 		d.log.Warn("cannot read the Linear identity; mentions disabled", "err", err)
 		return
 	}
-	d.meID, d.meName, d.mention = id, name, job.MentionPattern(name)
-	d.log.Info("mentions enabled", "as", "@"+name, "since", job.MentionWatermark(d.cfg.StateDir))
+	d.meID, d.meName, d.mention = me.ID, me.Name, job.MentionPattern(me.Name)
+	d.log.Info("mentions enabled", "as", "@"+me.Name, "since", job.MentionWatermark(d.cfg.StateDir))
 }
 
 func (d *daemon) mentioned(body string) bool { return d.mention != nil && d.mention.MatchString(body) }
@@ -128,7 +128,7 @@ func (d *daemon) runMentions(ctx context.Context) {
 		if time.Since(c.CreatedAt) < time.Minute || job.MentionHandled(d.cfg.StateDir, c.ID) {
 			continue
 		}
-		if ctx.Err() != nil || c.Issue == nil || (c.User != nil && c.User.ID == d.meID) ||
+		if ctx.Err() != nil || c.Issue == nil || (c.Author != nil && c.Author.ID == d.meID) ||
 			!d.mentioned(c.Body) || !job.ClaimMention(d.cfg.StateDir, c.ID) {
 			continue
 		}

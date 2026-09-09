@@ -1,6 +1,26 @@
 # Every Linear call agentd makes. genqlient checks them against schema.graphql at generation
 # time; a field that does not exist fails `go generate`, not a job.
 
+# Fragments map one-to-one to the domain types (Person, Label, Comment, Issue), so each type has a
+# single mapping function.
+
+fragment PersonFields on User {
+  id
+  name
+}
+
+fragment LabelFields on IssueLabel {
+  id
+  name
+}
+
+fragment CommentFields on Comment {
+  id
+  body
+  createdAt
+  user { ...PersonFields }
+}
+
 fragment IssueFields on Issue {
   id
   identifier
@@ -8,15 +28,15 @@ fragment IssueFields on Issue {
   description
   url
   team { key }
-  creator { id name }
-  assignee { id name }
-  delegate { id name }
-  labels { nodes { id name } }
-  comments(first: 50) { nodes { body user { name } } }
+  creator { ...PersonFields }
+  assignee { ...PersonFields }
+  delegate { ...PersonFields }
+  labels { nodes { ...LabelFields } }
+  comments(first: 50) { nodes { ...CommentFields } }
 }
 
 query Viewer {
-  viewer { id name }
+  viewer { ...PersonFields }
 }
 
 query IssuesWithLabel($filter: IssueFilter) {
@@ -30,10 +50,7 @@ query IssueByID($id: String!) {
 query CommentsSince($since: DateTimeOrDuration!, $text: String!) {
   comments(first: 50, orderBy: createdAt, filter: { createdAt: { gt: $since }, body: { containsIgnoreCase: $text } }) {
     nodes {
-      id
-      body
-      createdAt
-      user { id name }
+      ...CommentFields
       issue { ...IssueFields }
     }
   }

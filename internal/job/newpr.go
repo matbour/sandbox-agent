@@ -26,7 +26,7 @@ type Outcome struct {
 // Handle claims the issue (removes the trigger label), runs it, and reports on the issue.
 func (r *Runner) Handle(ctx context.Context, is linear.Issue) {
 	var names, keep []string
-	for _, l := range is.Labels.Nodes {
+	for _, l := range is.Labels {
 		names = append(names, l.Name)
 		if !r.Cfg.IsTrigger(l.Name) {
 			keep = append(keep, l.ID)

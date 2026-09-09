@@ -20,14 +20,11 @@ func MentionPattern(name string) *regexp.Regexp {
 
 // HandleMention updates the pull request of the comment's issue, replying in the comment's thread.
 func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
-	requester := "someone"
-	if c.User != nil {
-		requester = c.User.Name
-	}
+	requester := c.AuthorName()
 	rep := commentReporter{lc: r.Linear, log: r.Log, Issue: c.Issue.ID, Parent: c.ID}
 	owner := ""
-	if c.User != nil {
-		owner = c.User.ID
+	if c.Author != nil {
+		owner = c.Author.ID
 	}
 	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep, owner) {
 		r.Research(ctx, *c.Issue, requester, c.Body, rep)

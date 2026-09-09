@@ -61,11 +61,11 @@ func runCheck(ctx context.Context, r *job.Runner) error {
 	}
 	fmt.Printf("GitHub: %s reachable, default branch %s, token expires %s\n",
 		r.Cfg.Repo, branch, tok.ExpiresAt.Format(time.RFC3339))
-	who, err := r.Linear.Viewer(ctx)
+	me, err := r.Linear.Me(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Linear: acting as %q via the OAuth application\n", who)
+	fmt.Printf("Linear: acting as %q via the OAuth application\n", me.Name)
 	issues, err := r.Linear.IssuesWithLabel(ctx, r.Cfg.Labels(), r.Cfg.TeamKeys)
 	if err != nil {
 		return err

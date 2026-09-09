@@ -66,13 +66,13 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	logf := func(name string, data []byte) { _ = os.WriteFile(filepath.Join(dir, name), data, 0o600) }
 
 	// Our own comments are not part of the task.
-	var comments = is.Comments.Nodes[:0:0]
-	for _, c := range is.Comments.Nodes {
+	var comments []linear.Comment
+	for _, c := range is.Comments {
 		if !strings.HasPrefix(strings.TrimSpace(c.Body), Marker) {
 			comments = append(comments, c)
 		}
 	}
-	is.Comments.Nodes = comments
+	is.Comments = comments
 
 	// Sandbox.
 	stage(ctx, dir, StageSetup)

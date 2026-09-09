@@ -35,13 +35,9 @@ func ResearchPrompt(is linear.Issue, requester, request, notes string) string {
 	fmt.Fprintf(&b, "\n<request>\nFrom %s:\n%s\n</request>\n\n<issue>\n", defang(requester), defang(strings.TrimSpace(request)))
 	fmt.Fprintf(&b, "Identifier: %s\nTitle: %s\n\nDescription:\n%s\n", is.Identifier, defang(is.Title), orNone(defang(is.Description)))
 	var comments []string
-	for _, c := range is.Comments.Nodes {
+	for _, c := range is.Comments {
 		if !strings.HasPrefix(strings.TrimSpace(c.Body), Marker) {
-			name := "someone"
-			if c.User != nil {
-				name = c.User.Name
-			}
-			comments = append(comments, fmt.Sprintf("- %s: %s", defang(name), defang(strings.TrimSpace(c.Body))))
+			comments = append(comments, fmt.Sprintf("- %s: %s", defang(c.AuthorName()), defang(strings.TrimSpace(c.Body))))
 		}
 	}
 	if len(comments) > 0 {

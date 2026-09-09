@@ -52,14 +52,10 @@ func Prompt(is linear.Issue, extra string) string {
 	b.WriteString("\n<issue>\n")
 	fmt.Fprintf(&b, "Identifier: %s\nTitle: %s\n\nDescription:\n%s\n",
 		is.Identifier, defang(is.Title), orNone(defang(is.Description)))
-	if len(is.Comments.Nodes) > 0 {
+	if len(is.Comments) > 0 {
 		b.WriteString("\nComments:\n")
-		for _, c := range is.Comments.Nodes {
-			name := "someone"
-			if c.User != nil {
-				name = c.User.Name
-			}
-			fmt.Fprintf(&b, "- %s: %s\n", defang(name), defang(strings.TrimSpace(c.Body)))
+		for _, c := range is.Comments {
+			fmt.Fprintf(&b, "- %s: %s\n", defang(c.AuthorName()), defang(strings.TrimSpace(c.Body)))
 		}
 	}
 	b.WriteString("</issue>\n")

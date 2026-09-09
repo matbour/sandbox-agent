@@ -82,19 +82,13 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
-// Viewer returns the name of the identity the client acts as.
-func (c *Client) Viewer(ctx context.Context) (string, error) {
-	_, name, err := c.Me(ctx)
-	return name, err
-}
-
-// Me returns the id and name of the identity the client acts as.
-func (c *Client) Me(ctx context.Context) (id, name string, err error) {
+// Me returns the identity the client acts as.
+func (c *Client) Me(ctx context.Context) (*Person, error) {
 	r, err := Viewer(ctx, c.client())
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	return r.Viewer.Id, r.Viewer.Name, nil
+	return personFrom(&r.Viewer.PersonFields), nil
 }
 
 func truncate(s string, n int) string {

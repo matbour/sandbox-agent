@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-// Comment is a comment on an issue, with the issue it belongs to.
-type Comment struct {
-	ID        string
-	Body      string
-	CreatedAt time.Time
-	User      *struct{ ID, Name string }
-	Issue     *Issue
-}
-
 // Comment posts a Markdown comment on the issue.
 func (c *Client) Comment(ctx context.Context, issueID, body string) error {
 	_, err := CreateComment(ctx, c.client(), issueID, body, nil)
@@ -33,11 +24,9 @@ func (c *Client) CommentsSince(ctx context.Context, since time.Time, text string
 		return nil, err
 	}
 	out := make([]Comment, 0, len(r.Comments.Nodes))
-	for _, n := range r.Comments.Nodes {
-		cm := Comment{ID: n.Id, Body: n.Body, CreatedAt: n.CreatedAt}
-		if n.User != nil {
-			cm.User = &struct{ ID, Name string }{ID: n.User.Id, Name: n.User.Name}
-		}
+	for i := range r.Comments.Nodes {
+		n := &r.Comments.Nodes[i]
+		cm := commentFrom(&n.CommentFields)
 		if n.Issue != nil {
 			is := issueFrom(&n.Issue.IssueFields)
 			cm.Issue = &is
