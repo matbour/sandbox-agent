@@ -5,7 +5,11 @@ GO ?= $(shell command -v go 2>/dev/null || echo $(HOME)/.local/go/bin/go)
 # Keep this path stable: the AppArmor userns profile (M2, docs/host.md) will be attached to it.
 BIN := bin/sandbox
 
-.PHONY: build test generate linear-schema clean
+# Run with `go run` at a pinned version rather than as a go.mod tool: golangci-lint's many
+# dependencies would otherwise share our module graph and could bump our own versions.
+GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+
+.PHONY: build test lint fmt check hooks generate linear-schema clean
 
 build:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o $(BIN) ./cmd/sandbox
@@ -23,6 +27,20 @@ linear-schema:
 
 test:
 	CGO_ENABLED=0 $(GO) test ./...
+
+# go vet, the standard linters, and gofmt/goimports checks (.golangci.yml).
+lint:
+	$(GOLANGCI_LINT) run
+
+# Rewrite files with gofmt and goimports.
+fmt:
+	$(GOLANGCI_LINT) fmt
+
+check: lint test build
+
+# Install the Git hooks defined in lefthook.yml.
+hooks:
+	$(GO) tool lefthook install
 
 clean:
 	rm -rf bin

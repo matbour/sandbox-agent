@@ -1,0 +1,17 @@
+# Git hooks. Install with `make hooks`. Each command calls a Makefile target, so a hook and a
+# manual run do the same thing. Skip once with `LEFTHOOK=0 git commit ...`.
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.{go,mod,sum}"
+      run: make lint
+    build:
+      glob: "*.{go,mod,sum}"
+      run: make build
+
+pre-push:
+  commands:
+    test:
+      run: make test
