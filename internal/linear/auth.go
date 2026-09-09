@@ -70,7 +70,11 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 		"client_secret": {c.ClientSecret},
 		"scope":         {AppScopes},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
+	url := tokenEndpoint
+	if c.tokenURL != "" {
+		url = c.tokenURL
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}

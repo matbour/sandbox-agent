@@ -1,0 +1,63 @@
+# Every Linear call agentd makes. genqlient checks them against schema.graphql at generation
+# time; a field that does not exist fails `go generate`, not a job.
+
+fragment IssueFields on Issue {
+  id
+  identifier
+  title
+  description
+  url
+  team { key }
+  creator { id name }
+  assignee { id name }
+  delegate { id name }
+  labels { nodes { id name } }
+  comments(first: 50) { nodes { body user { name } } }
+}
+
+query Viewer {
+  viewer { id name }
+}
+
+query IssuesWithLabel($filter: IssueFilter) {
+  issues(filter: $filter, first: 20) { nodes { ...IssueFields } }
+}
+
+query IssueByID($id: String!) {
+  issue(id: $id) { ...IssueFields }
+}
+
+query CommentsSince($since: DateTimeOrDuration!, $text: String!) {
+  comments(first: 50, orderBy: createdAt, filter: { createdAt: { gt: $since }, body: { containsIgnoreCase: $text } }) {
+    nodes {
+      id
+      body
+      createdAt
+      user { id name }
+      issue { ...IssueFields }
+    }
+  }
+}
+
+mutation SetLabels($id: String!, $labels: [String!]) {
+  issueUpdate(id: $id, input: { labelIds: $labels }) { success }
+}
+
+mutation Assign($id: String!, $user: String) {
+  issueUpdate(id: $id, input: { assigneeId: $user }) { success }
+}
+
+# Mutations take explicit variables rather than whole input objects: a generated input struct
+# would send every unset field as null, which can clear data (externalUrls, for example).
+
+mutation CreateComment($issueId: String!, $body: String!, $parentId: String) {
+  commentCreate(input: { issueId: $issueId, body: $body, parentId: $parentId }) { success }
+}
+
+mutation CreateAgentActivity($session: String!, $content: JSONObject!) {
+  agentActivityCreate(input: { agentSessionId: $session, content: $content }) { success }
+}
+
+mutation AddAgentSessionLink($id: String!, $label: String!, $url: String!) {
+  agentSessionUpdate(id: $id, input: { addedExternalUrls: [{ label: $label, url: $url }] }) { success }
+}

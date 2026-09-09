@@ -1,0 +1,45 @@
+# genqlient generates generated.go from queries.graphql, checked against Linear's schema.
+# Regenerate with: go generate ./internal/linear
+# schema.graphql comes from github.com/linear/linear, packages/sdk/src/schema.graphql, at the
+# commit noted in schema.version.
+schema: schema.graphql
+operations:
+  - queries.graphql
+generated: generated.go
+package: linear
+optional: pointer
+bindings:
+  DateTime:
+    type: time.Time
+  DateTimeOrDuration:
+    type: string
+  JSONObject:
+    type: map[string]any
+  JSON:
+    type: encoding/json.RawMessage
+  Duration:
+    type: string
+  TimelessDate:
+    type: string
+  TimelessDateOrDuration:
+    type: string
+  UUID:
+    type: string
+  IssueAssignedToYouNotificationType:
+    type: string
+  IssueCommentMentionNotificationType:
+    type: string
+  IssueCommentReactionNotificationType:
+    type: string
+  IssueEmojiReactionNotificationType:
+    type: string
+  IssueMentionNotificationType:
+    type: string
+  IssueNewCommentNotificationType:
+    type: string
+  IssueStatusChangedNotificationType:
+    type: string
+  IssueUnassignedFromYouNotificationType:
+    type: string
+  IssueFilter:
+    type: map[string]any
