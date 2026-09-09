@@ -2,53 +2,54 @@ package github
 
 import (
 	"context"
-	"net/http"
+	"fmt"
 	"strings"
+
+	gh "github.com/google/go-github/v93/github"
 )
 
-// Check is the outcome of one CI check or commit status.
+// Check is the outcome of one CI check run or commit status.
 type Check struct {
 	Name       string
-	Conclusion string // success, failure, pending, ...
+	Conclusion string // success, failure, pending, in_progress, ...
 	Summary    string
 }
 
-// Checks returns the check runs and commit statuses for a commit.
+// Checks returns the check runs and commit statuses of a commit, all pages.
 func (r *Repo) Checks(ctx context.Context, sha string) ([]Check, error) {
-	var runs struct {
-		CheckRuns []struct {
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			Conclusion string `json:"conclusion"`
-			Output     struct {
-				Title   string `json:"title"`
-				Summary string `json:"summary"`
-			} `json:"output"`
-		} `json:"check_runs"`
-	}
-	var status struct {
-		Statuses []struct {
-			Context     string `json:"context"`
-			State       string `json:"state"`
-			Description string `json:"description"`
-		} `json:"statuses"`
-	}
-	if err := r.call(ctx, http.MethodGet, "/commits/"+sha+"/check-runs?per_page=100", nil, &runs); err != nil {
-		return nil, err
-	}
-	if err := r.call(ctx, http.MethodGet, "/commits/"+sha+"/status", nil, &status); err != nil {
-		return nil, err
-	}
 	var out []Check
-	for _, c := range runs.CheckRuns {
-		concl := c.Conclusion
-		if c.Status != "completed" {
-			concl = c.Status
+	opts := &gh.ListCheckRunsOptions{ListOptions: gh.ListOptions{PerPage: 100}}
+	for {
+		runs, resp, err := r.gh().Checks.ListCheckRunsForRef(ctx, r.Owner, r.Name, sha, opts)
+		if err != nil {
+			return nil, fmt.Errorf("github: check runs: %w", err)
 		}
-		out = append(out, Check{Name: c.Name, Conclusion: concl, Summary: strings.TrimSpace(c.Output.Title + " " + c.Output.Summary)})
+		for _, c := range runs.CheckRuns {
+			concl := c.GetConclusion()
+			if c.GetStatus() != "completed" {
+				concl = c.GetStatus()
+			}
+			out = append(out, Check{Name: c.GetName(), Conclusion: concl,
+				Summary: strings.TrimSpace(c.GetOutput().GetTitle() + " " + c.GetOutput().GetSummary())})
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	for _, s := range status.Statuses {
-		out = append(out, Check{Name: s.Context, Conclusion: s.State, Summary: s.Description})
+	page := &gh.ListOptions{PerPage: 100}
+	for {
+		st, resp, err := r.gh().Repositories.GetCombinedStatus(ctx, r.Owner, r.Name, sha, page)
+		if err != nil {
+			return nil, fmt.Errorf("github: commit status: %w", err)
+		}
+		for _, s := range st.Statuses {
+			out = append(out, Check{Name: s.GetContext(), Conclusion: s.GetState(), Summary: s.GetDescription()})
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		page.Page = resp.NextPage
 	}
 	return out, nil
 }

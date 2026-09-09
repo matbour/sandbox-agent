@@ -287,3 +287,14 @@ LAN address and cloud metadata unreachable, nothing left after `Close`. sbx pass
 
 What sbx gives for free and other providers must rebuild: the image (Claude Code, Git, Python),
 key injection through a host proxy (the egress proxy of M4), and the network policy.
+
+## D31. go-github and ghinstallation instead of a hand-written GitHub client (2026-11-13)
+
+`internal/github` keeps its interface but now uses `github.com/google/go-github/v93` (v93.0.0)
+for REST and `github.com/bradleyfalzon/ghinstallation/v2` (v2.19.0) to sign the App JWT; the
+hand-written JWT and HTTP code is gone. Gains: typed responses, and pagination of comments,
+reviews, review comments and check runs (the old client read only the first 100 of each). Leaving
+draft has no REST endpoint and stays a GraphQL request sent through go-github's client. These are
+the project's first third-party dependencies (plus golang-jwt and go-querystring, and go-github
+v88 required by ghinstallation); all pure Go, versions pinned in go.mod and go.sum. Tested against
+a fake API and read-only against the real repository.

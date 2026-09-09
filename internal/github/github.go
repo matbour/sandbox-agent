@@ -1,75 +1,126 @@
-// Package github authenticates as a GitHub App installation and opens pull requests.
+// Package github talks to GitHub as a GitHub App installation: ghinstallation signs the App's
+// JWT, go-github does the REST calls. One GraphQL call (leaving draft) has no REST equivalent and
+// goes through go-github's raw request support.
 package github
 
 import (
-	"bytes"
 	"context"
-	"crypto/rsa"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/bradleyfalzon/ghinstallation/v2"
+	gh "github.com/google/go-github/v93/github"
 )
 
-const api = "https://api.github.com"
-
-// App holds the App credentials. The private key never leaves the host.
+// App is a GitHub App installation. Its private key never leaves the host.
 type App struct {
-	ID             string
-	InstallationID string
-	key            *rsa.PrivateKey
-	HTTP           *http.Client
+	ID             int64
+	InstallationID int64
+	HTTP           *http.Client // base client for installation-token calls (timeouts)
+
+	apps    *gh.Client // authenticated as the App (JWT)
+	baseURL string     // tests only: a fake API
 }
 
-func (a *App) call(ctx context.Context, method, path, auth string, in, out any) error {
-	var rd io.Reader
-	if in != nil {
-		b, _ := json.Marshal(in)
-		rd = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, api+path, rd)
+// NewApp loads the App's PEM private key from keyPath.
+func NewApp(id, installationID, keyPath string) (*App, error) {
+	key, err := os.ReadFile(keyPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	req.Header.Set("Authorization", auth)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	hc := a.HTTP
-	if hc == nil {
-		hc = http.DefaultClient
-	}
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
-	if resp.StatusCode/100 != 2 {
-		msg := strings.TrimSpace(string(raw))
-		if len(msg) > 400 {
-			msg = msg[:400] + "…"
-		}
-		return fmt.Errorf("github: %s %s: HTTP %d: %s", method, path, resp.StatusCode, msg)
-	}
-	if out != nil {
-		return json.Unmarshal(raw, out)
-	}
-	return nil
+	return newApp(id, installationID, key, "")
 }
 
-// Repo is a repository as seen by an installation token.
+func newApp(id, installationID string, key []byte, baseURL string) (*App, error) {
+	appID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("github: App ID %q: %w", id, err)
+	}
+	instID, err := strconv.ParseInt(installationID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("github: installation ID %q: %w", installationID, err)
+	}
+	tr, err := ghinstallation.NewAppsTransport(http.DefaultTransport, appID, key)
+	if err != nil {
+		return nil, fmt.Errorf("github: App key: %w", err)
+	}
+	a := &App{ID: appID, InstallationID: instID, HTTP: &http.Client{Timeout: 30 * time.Second}, baseURL: baseURL}
+	if baseURL != "" {
+		tr.BaseURL = strings.TrimSuffix(baseURL, "/")
+	}
+	opts := []gh.ClientOptionsFunc{gh.WithHTTPClient(&http.Client{Transport: tr, Timeout: 30 * time.Second})}
+	a.apps, err = gh.NewClient(append(opts, baseOpts(baseURL)...)...)
+	return a, err
+}
+
+// Token is a short-lived installation token.
+type Token struct {
+	Value     string
+	ExpiresAt time.Time
+}
+
+// InstallationToken mints a token (one hour), restricted to the given repository names (without
+// owner) when any are given.
+func (a *App) InstallationToken(ctx context.Context, repos ...string) (*Token, error) {
+	var opts *gh.InstallationTokenOptions
+	if len(repos) > 0 {
+		opts = &gh.InstallationTokenOptions{Repositories: repos}
+	}
+	t, _, err := a.apps.Apps.CreateInstallationToken(ctx, a.InstallationID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("github: installation token: %w", err)
+	}
+	return &Token{Value: t.GetToken(), ExpiresAt: t.GetExpiresAt().Time}, nil
+}
+
+// Repo is a repository seen through an installation token.
 type Repo struct {
 	Token *Token
 	Owner string
 	Name  string
-	HTTP  *http.Client
+	HTTP  *http.Client // optional base client
+
+	client  *gh.Client
+	baseURL string // tests only
 }
 
-func (r *Repo) call(ctx context.Context, method, path string, in, out any) error {
-	a := &App{HTTP: r.HTTP}
-	return a.call(ctx, method, "/repos/"+r.Owner+"/"+r.Name+path, "token "+r.Token.Value, in, out)
+func (r *Repo) gh() *gh.Client {
+	if r.client == nil {
+		opts := []gh.ClientOptionsFunc{gh.WithAuthToken(r.Token.Value)}
+		if r.HTTP != nil {
+			opts = append(opts, gh.WithHTTPClient(r.HTTP))
+		}
+		c, err := gh.NewClient(append(opts, baseOpts(r.baseURL)...)...)
+		if err != nil {
+			panic(err) // only reachable with a malformed test base URL
+		}
+		r.client = c
+	}
+	return r.client
+}
+
+// CloneURL is the HTTPS URL; credentials go through Git config, never in the URL.
+func (r *Repo) CloneURL() string {
+	return fmt.Sprintf("https://github.com/%s/%s.git", r.Owner, r.Name)
+}
+
+// DefaultBranch returns the repository's default branch.
+func (r *Repo) DefaultBranch(ctx context.Context) (string, error) {
+	repo, _, err := r.gh().Repositories.Get(ctx, r.Owner, r.Name)
+	if err != nil {
+		return "", fmt.Errorf("github: repository: %w", err)
+	}
+	return repo.GetDefaultBranch(), nil
+}
+
+// baseOpts points a client at a fake API in tests.
+func baseOpts(base string) []gh.ClientOptionsFunc {
+	if base == "" {
+		return nil
+	}
+	return []gh.ClientOptionsFunc{gh.WithURLs(&base, &base)}
 }

@@ -3,64 +3,70 @@ package github
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
+
+	gh "github.com/google/go-github/v93/github"
 )
 
-// PullRequest is the subset of the API response the worker uses.
+// PullRequest is a newly opened pull request.
 type PullRequest struct {
-	Number  int    `json:"number"`
-	NodeID  string `json:"node_id"`
-	HTMLURL string `json:"html_url"`
+	Number  int
+	NodeID  string
+	HTMLURL string
 }
 
 // CreateDraftPR opens a draft pull request from head into base.
 func (r *Repo) CreateDraftPR(ctx context.Context, head, base, title, body string) (*PullRequest, error) {
-	var pr PullRequest
-	err := r.call(ctx, http.MethodPost, "/pulls", map[string]any{
-		"head": head, "base": base, "title": title, "body": body, "draft": true,
-	}, &pr)
-	return &pr, err
+	pr, _, err := r.gh().PullRequests.Create(ctx, r.Owner, r.Name, gh.CreatePullRequest{
+		Title: gh.Ptr(title), Head: head, Base: base, Body: gh.Ptr(body), Draft: gh.Ptr(true),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("github: create pull request: %w", err)
+	}
+	return &PullRequest{Number: pr.GetNumber(), NodeID: pr.GetNodeID(), HTMLURL: pr.GetHTMLURL()}, nil
 }
 
-// PR is the subset of a pull request the worker uses.
+// PR is the subset of an existing pull request the worker uses.
 type PR struct {
-	Number  int    `json:"number"`
-	NodeID  string `json:"node_id"`
-	Draft   bool   `json:"draft"`
-	State   string `json:"state"`
-	Merged  bool   `json:"merged"`
-	HTMLURL string `json:"html_url"`
-	Head    struct {
-		Ref string `json:"ref"`
-		SHA string `json:"sha"`
-	} `json:"head"`
-	Base struct {
-		Ref string `json:"ref"`
-	} `json:"base"`
+	Number  int
+	NodeID  string
+	Draft   bool
+	State   string // open or closed
+	Merged  bool
+	HTMLURL string
+	Head    struct{ Ref, SHA string }
+	Base    struct{ Ref string }
 }
 
 // GetPR returns pull request n.
 func (r *Repo) GetPR(ctx context.Context, n int) (*PR, error) {
-	var pr PR
-	err := r.call(ctx, http.MethodGet, fmt.Sprintf("/pulls/%d", n), nil, &pr)
-	return &pr, err
+	p, _, err := r.gh().PullRequests.Get(ctx, r.Owner, r.Name, n)
+	if err != nil {
+		return nil, fmt.Errorf("github: pull request #%d: %w", n, err)
+	}
+	out := &PR{Number: p.GetNumber(), NodeID: p.GetNodeID(), Draft: p.GetDraft(), State: p.GetState(),
+		Merged: p.GetMerged(), HTMLURL: p.GetHTMLURL()}
+	out.Head.Ref, out.Head.SHA = p.GetHead().GetRef(), p.GetHead().GetSHA()
+	out.Base.Ref = p.GetBase().GetRef()
+	return out, nil
 }
 
-// MarkReady takes a draft pull request out of draft. The REST API cannot do it; GraphQL can.
+// MarkReady takes a draft pull request out of draft. REST cannot; GraphQL can.
 func (r *Repo) MarkReady(ctx context.Context, nodeID string) error {
-	body := map[string]any{
+	req, err := r.gh().NewRequest(ctx, "POST", "graphql", map[string]any{
 		"query":     `mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`,
 		"variables": map[string]string{"id": nodeID},
+	})
+	if err != nil {
+		return err
 	}
 	var out struct {
 		Errors []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	a := &App{HTTP: r.HTTP}
-	if err := a.call(ctx, http.MethodPost, "/graphql", "token "+r.Token.Value, body, &out); err != nil {
-		return err
+	if _, err := r.gh().Do(req, &out); err != nil {
+		return fmt.Errorf("github: mark ready: %w", err)
 	}
 	if len(out.Errors) > 0 {
 		return fmt.Errorf("github: mark ready: %s", out.Errors[0].Message)
