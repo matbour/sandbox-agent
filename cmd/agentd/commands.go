@@ -65,11 +65,7 @@ func runCheck(ctx context.Context, r *job.Runner) error {
 	if err != nil {
 		return err
 	}
-	mode := "personal API key"
-	if r.Linear.IsApp() {
-		mode = "OAuth application (client credentials)"
-	}
-	fmt.Printf("Linear: acting as %q via %s\n", who, mode)
+	fmt.Printf("Linear: acting as %q via the OAuth application\n", who)
 	issues, err := r.Linear.IssuesWithLabel(ctx, r.Cfg.Labels(), r.Cfg.TeamKeys)
 	if err != nil {
 		return err

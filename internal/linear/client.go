@@ -1,7 +1,7 @@
 // Package linear is agentd's Linear client. The GraphQL operations live in queries.graphql and are
 // compiled by genqlient into generated.go, checked against Linear's schema (schema.graphql, from
 // the official SDK repository). This package adds authentication (an OAuth application with
-// client credentials, or a personal API key) and maps the generated types to small domain types.
+// client credentials) and maps the generated types to small domain types.
 package linear
 
 //go:generate go tool genqlient
@@ -17,10 +17,8 @@ import (
 
 const endpoint = "https://api.linear.app/graphql"
 
-// Client talks to Linear as an OAuth application (client credentials, actor app) when ClientID
-// is set, else with a personal API key.
+// Client talks to Linear as an OAuth application (client credentials, actor app).
 type Client struct {
-	APIKey       string
 	ClientID     string
 	ClientSecret string
 	// TokenPath, if set, caches the application token across restarts (mode 0600).
@@ -33,11 +31,6 @@ type Client struct {
 	gql      graphql.Client
 	endpoint string // tests only
 	tokenURL string // tests only
-}
-
-// New returns a client authenticated with a personal API key.
-func New(apiKey string) *Client {
-	return &Client{APIKey: apiKey, HTTP: &http.Client{Timeout: 30 * time.Second}}
 }
 
 // client returns the GraphQL client, whose transport adds the Authorization header.
@@ -81,7 +74,7 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		r.Header.Set("Authorization", auth)
 		resp, err := t.base.RoundTrip(r)
-		if err == nil && resp.StatusCode == http.StatusUnauthorized && t.c.IsApp() && attempt == 0 && req.GetBody != nil {
+		if err == nil && resp.StatusCode == http.StatusUnauthorized && attempt == 0 && req.GetBody != nil {
 			resp.Body.Close()
 			continue
 		}

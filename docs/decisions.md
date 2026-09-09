@@ -110,7 +110,7 @@ not tried on real issues yet.
 ## D17. Host credentials in `secrets/` at the repository root (2026-11-13)
 
 Easier for the owner to manage than `~/.config`. `secrets/` is ignored by Git and holds one file per
-credential (`linear-api-key`, `github-app.pem`) plus `config.env` for settings that name private
+credential (`linear-api-key`, `github-app.pem`; the Linear key was later replaced by the OAuth application, D21 and D34) plus `config.env` for settings that name private
 things (repository, App IDs) and the repository-specific `setup.sh`. `agentd` refuses to start if
 the directory is not `0700` or a file it reads is accessible to group or others. The Anthropic key
 stays in the `sbx` secret store, which injects it through its proxy.
@@ -145,8 +145,8 @@ Same idea as the GitHub App (D12). An OAuth application with client credentials 
 the `app` actor: comments are created as the application instead of the owner, the application takes
 no seat, and it can be revoked independently. `agentd` mints a token from `secrets/linear-client-id`
 and `secrets/linear-client-secret` (scope `read,write`), caches it in the state directory (0600),
-renews it a day before its 30-day expiry and once on a 401. The personal API key remains a fallback
-while those files are empty. Next level, not done: Linear's agent mode (assign or mention the
+renews it a day before its 30-day expiry and once on a 401. The personal API key remained a fallback
+while those files were empty, until D34 removed it. Next level, not done: Linear's agent mode (assign or mention the
 application, live activities in the issue), which needs agent session webhooks and therefore a public
 endpoint.
 
@@ -313,3 +313,11 @@ input structs send unset fields as `null`, which could clear data such as a sess
 links; `IssueFilter` is bound to a map so its recursive filter types are not generated (8,400
 lines down to 1,400). genqlient needs `golang.org/x/tools` v0.38.0 to build with Go 1.27.
 `make generate` regenerates, `make linear-schema` refreshes the schema.
+
+## D34. No Linear personal API key (2026-11-15)
+
+The OAuth application (D21) is the only way `agentd` authenticates to Linear. The fallback to a
+personal API key (`secrets/linear-api-key`, `LINEAR_API_KEY`) is gone: agent sessions and
+activities need the application token anyway (personal keys cannot publish agent activities), the
+key was tied to the owner's account, and one mode means one code path. `agentd` refuses to start
+without `secrets/linear-client-id` and `secrets/linear-client-secret`.

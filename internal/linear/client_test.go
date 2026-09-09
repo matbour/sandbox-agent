@@ -58,17 +58,17 @@ func fake(t *testing.T, reject401 bool) (*httptest.Server, *[]gqlReq, *int) {
 	return httptest.NewServer(mux), &reqs, &minted
 }
 
-func TestAPIKeyAndMapping(t *testing.T) {
+func TestMapping(t *testing.T) {
 	srv, reqs, _ := fake(t, false)
 	defer srv.Close()
-	c := New("lin_api_x")
-	c.endpoint = srv.URL + "/graphql"
+	c := New("id", "sec", "")
+	c.endpoint, c.tokenURL = srv.URL+"/graphql", srv.URL+"/oauth/token"
 	ctx := context.Background()
 	if id, name, err := c.Me(ctx); err != nil || id != "u1" || name != "Sandbox Agent" {
 		t.Fatalf("me: %s %s %v", id, name, err)
 	}
-	if (*reqs)[0].Auth != "lin_api_x" {
-		t.Errorf("API key not sent as is: %q", (*reqs)[0].Auth)
+	if (*reqs)[0].Auth != "Bearer tok1" {
+		t.Errorf("application token not sent: %q", (*reqs)[0].Auth)
 	}
 	is, err := c.IssueByID(ctx, "ENG-1")
 	if err != nil {
@@ -98,7 +98,7 @@ func TestAPIKeyAndMapping(t *testing.T) {
 func TestAppTokenRetriesOn401(t *testing.T) {
 	srv, reqs, minted := fake(t, true)
 	defer srv.Close()
-	c := NewApp("id", "sec", t.TempDir()+"/token.json")
+	c := New("id", "sec", t.TempDir()+"/token.json")
 	c.endpoint, c.tokenURL = srv.URL+"/graphql", srv.URL+"/oauth/token"
 	if _, _, err := c.Me(context.Background()); err != nil {
 		t.Fatal(err)

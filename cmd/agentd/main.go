@@ -83,13 +83,10 @@ func newRunner(cfg *config.Config, log *slog.Logger) (*job.Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	lc := linear.New(cfg.LinearAPIKey)
-	if cfg.LinearClientID != "" {
-		if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
-			return nil, err
-		}
-		lc = linear.NewApp(cfg.LinearClientID, cfg.LinearSecret, filepath.Join(cfg.StateDir, "linear-token.json"))
+	if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
+		return nil, err
 	}
+	lc := linear.New(cfg.LinearClientID, cfg.LinearSecret, filepath.Join(cfg.StateDir, "linear-token.json"))
 	sp, err := providers.New(cfg.Provider, sandbox.Options{CPUSet: cfg.CPUs})
 	if err != nil {
 		return nil, err

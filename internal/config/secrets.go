@@ -11,7 +11,6 @@ import (
 //
 //	secrets/config.env       non-secret settings that name private things (KEY=VALUE)
 //	secrets/linear-client-id, linear-client-secret  Linear OAuth application (client credentials)
-//	secrets/linear-api-key   Linear personal API key, used if the application is not set
 //	secrets/linear-webhook-secret  signing secret of the Linear webhook (optional)
 //	secrets/github-app.pem   GitHub App private key
 //	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
@@ -19,7 +18,6 @@ import (
 // The directory and every file read from it must not be accessible to group or others.
 const (
 	ConfigFile     = "config.env"
-	LinearKeyFile  = "linear-api-key"
 	LinearIDFile   = "linear-client-id"
 	LinearSecFile  = "linear-client-secret"
 	LinearHookFile = "linear-webhook-secret"

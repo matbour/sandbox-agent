@@ -14,8 +14,7 @@ import (
 
 // Config holds every setting agentd needs. Secrets stay on the host.
 type Config struct {
-	LinearAPIKey   string
-	LinearClientID string // OAuth application (client credentials); preferred over the API key
+	LinearClientID string // OAuth application (client credentials)
 	LinearSecret   string
 	LinearHookKey  string        // Linear webhook signing secret; empty disables the webhook route
 	WebAddr        string        // loopback address of the HTTP server; empty disables it
@@ -103,13 +102,6 @@ func load(secretsDir string, full bool) (*Config, error) {
 		}
 		return def
 	}
-	linearKey := os.Getenv("LINEAR_API_KEY")
-	if linearKey == "" {
-		var err error
-		if linearKey, err = readSecret(secretsDir, LinearKeyFile); err != nil {
-			return nil, err
-		}
-	}
 	linearID, err := readSecret(secretsDir, LinearIDFile)
 	if err != nil {
 		return nil, err
@@ -128,7 +120,6 @@ func load(secretsDir string, full bool) (*Config, error) {
 	}
 	home, _ := os.UserHomeDir()
 	c := &Config{
-		LinearAPIKey:   linearKey,
 		LinearClientID: linearID,
 		LinearSecret:   linearSecret,
 		LinearHookKey:  linearHook,
@@ -197,10 +188,10 @@ func load(secretsDir string, full bool) (*Config, error) {
 			missing = append(missing, k)
 		}
 	}
-	if (c.LinearClientID == "") != (c.LinearSecret == "") {
-		missing = append(missing, fmt.Sprintf("both %s and %s, or neither", LinearIDFile, LinearSecFile))
-	} else if c.LinearClientID == "" && c.LinearAPIKey == "" {
-		missing = append(missing, fmt.Sprintf("%s and %s (or %s)", LinearIDFile, LinearSecFile, LinearKeyFile))
+	for name, v := range map[string]string{LinearIDFile: c.LinearClientID, LinearSecFile: c.LinearSecret} {
+		if v == "" {
+			missing = append(missing, name)
+		}
 	}
 	if st, err := os.Stat(c.GitHubKeyPath); err != nil || st.Size() == 0 {
 		missing = append(missing, c.GitHubKeyPath+" (missing or empty)")

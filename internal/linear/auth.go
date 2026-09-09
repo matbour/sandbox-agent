@@ -22,22 +22,16 @@ type appToken struct {
 // can be mentioned and delegated issues, which opens agent sessions).
 const AppScopes = "read,write,app:assignable,app:mentionable"
 
-// NewApp returns a client authenticated as an OAuth application with client credentials.
-func NewApp(clientID, clientSecret, tokenPath string) *Client {
+// New returns a client authenticated as an OAuth application with client credentials.
+func New(clientID, clientSecret, tokenPath string) *Client {
 	return &Client{ClientID: clientID, ClientSecret: clientSecret, TokenPath: tokenPath,
 		HTTP: &http.Client{Timeout: 30 * time.Second}}
 }
-
-// IsApp reports whether the client acts as the application.
-func (c *Client) IsApp() bool { return c.ClientID != "" }
 
 const tokenEndpoint = "https://api.linear.app/oauth/token"
 
 // auth returns the Authorization header value, minting an application token when needed.
 func (c *Client) auth(ctx context.Context, fresh bool) (string, error) {
-	if !c.IsApp() {
-		return c.APIKey, nil
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.token == nil && !fresh && c.TokenPath != "" {
