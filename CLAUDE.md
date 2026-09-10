@@ -40,13 +40,14 @@ Generic facts in [docs/host.md](docs/host.md); access and specifics in the priva
 - The repository lives on the board, in `~/sandbox-agent` of the development account. Edit it there
   (VS Code Remote-SSH, or Claude Code running on the board). There is no other working copy.
 - Go is installed in the home directory (`~/.local/go`), not system-wide. `make build` builds
-  `bin/sandbox` natively, `make test` runs the tests. Nothing to copy: the binary is already on the
-  board.
+  `bin/agentd` and `bin/sandbox` natively, `make test` runs the tests. Nothing to copy: the binaries
+  are already on the board.
 
 ## Rules
 
 - No secret ever enters the sandbox. API keys and GitHub tokens live on the host only.
 - Every isolation feature comes with an escape test ([docs/escape-tests.md](docs/escape-tests.md)).
-- Record decisions in [docs/decisions.md](docs/decisions.md).
+- Record decisions in [docs/decisions.md](docs/decisions.md); longer records go in `docs/decision/`
+  with a short entry in `decisions.md` that links to them.
 - Nothing in this repository mentions an employer, a job application or a company the project is
   meant for.

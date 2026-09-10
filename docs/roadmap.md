@@ -22,16 +22,16 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [x] Boot time and memory measured; network policy checked from inside a VM (D14).
 - [ ] E-NET and E-SEC tests scripted against `sbx`.
 
-## S2: GitHub App and worker
+## S2: GitHub App and job runner
 
-- [ ] The owner creates the GitHub App (D12) and installs it on the target repository.
+- [x] The owner creates the GitHub App (D12) and installs it on the target repository.
 - [x] `agentd` (2026-11-13): clone, export without `.git`, setup script, `claude -p` in `sbx`,
       stage against the clean clone, validate, push `agent/*`, draft PR. `-try` runs the sandbox part
       on a local repository; checked on a Bun sample (28 s, $0.13).
 - [x] GitHub App created and installed, `agentd -check` passes (2026-11-13).
 - [x] Dry run on the target repository in a sandbox: setup, lint and tests work (2026-11-13).
 - [x] First real issue end to end: draft PR in 3 min 26, $0.20 with Sonnet (2026-11-13).
-- [ ] The runtime is an interface in the worker, so other runtimes plug in later.
+- [x] The runtime is an interface, so other runtimes plug in later (milestone P, D30, 2026-11-13).
 
 ## S3: Linear trigger
 
@@ -43,6 +43,25 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [ ] Escape tests E-HOOK scripted.
 - [ ] End-to-end: label an issue, get a draft PR.
 
+## W: manager and worker protocol (D33, from 2026-11-14)
+
+Design in [decision/protocol.md](decision/protocol.md).
+
+- [ ] `make build` builds every `./cmd/...` into `bin/`.
+- [ ] Import test: `cmd/worker`, `cmd/sandbox` and `internal/task` do not depend on `linear`,
+      `github`, `config` or `gitops`.
+- [ ] `internal/task`: `Task`, `Event` and the event kinds, plus the manager's event reader with its
+      limits. E-PROTO tests pass.
+- [ ] `ExecOptions` gains `Stdin` and `Stdout` for streaming; the conformance suite covers it. Verify
+      that `sbx exec` streams without a TTY.
+- [ ] `Spec` gains a read-only mount for the worker binary; the conformance suite checks E-RT-4.
+- [ ] `cmd/worker`: setup script, `claude -p --output-format stream-json`, final message parsed into
+      `ask`, `done` or `fail`.
+- [ ] Manager: render the task, read events, tag their source, forward them to Linear, own the
+      session state machine. `internal/job` no longer runs `claude` itself.
+- [ ] Check on a real session which status Linear shows after each activity type; record it.
+- [ ] A real issue end to end through the worker.
+
 ## P: sandbox providers (from 2026-11-13)
 
 - [x] `internal/sandbox` interface, sbx moved behind it, conformance suite; sbx passes (D30).
@@ -52,10 +71,15 @@ them (M1 to M8). The target workspace and repository are in the private notes.
       proxy (M4) that injects the key. Pass the conformance suite, then run a real issue.
 - [ ] Comparison table: start time, install time on the target monorepo, memory, escape tests.
 
-## M1: Firecracker spike
+## M1: microVM spike (Firecracker and Cloud Hypervisor)
 
-- [ ] Boot one microVM pinned to cores 4-7 (see [microvm.md](microvm.md)).
-- [ ] Decide layer 2: Firecracker or gVisor. Record the result and the errors met.
+- [ ] Boot one Firecracker microVM pinned to cores 4-7 (see [microvm.md](microvm.md)).
+- [ ] Same with Cloud Hypervisor: both run on KVM and support arm64. Cloud Hypervisor also has
+      PCI passthrough (GPUs), which Firecracker lacks. Both have snapshot and restore (arm64
+      support of each to verify).
+- [ ] Snapshot a booted VM and restore it on both; measure the restore time against a cold boot.
+- [ ] Decide layer 2: Firecracker, Cloud Hypervisor or gVisor. Record the result and the errors
+      met.
 
 ## M2: rootless user namespaces
 
@@ -78,19 +102,22 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [ ] Forwarder inside the sandbox on `127.0.0.1:8080`.
 - [ ] E-SEC and E-NET-6, E-NET-7 pass.
 
-## M5: agent run, by hand
+## M5: agent run in the layer 1 runtime
+
+Done with `sbx` in S1 and S2. This milestone is the same run in the purpose-built runtime.
 
 - [ ] Rootfs with Node.js, Git, Python and the agent CLIs (arm64).
-- [ ] Run Claude Code in the sandbox on a sample repository and a written task; get a patch.
+- [ ] Run the worker in the layer 1 sandbox on a sample repository and a written task; get a change.
 - [ ] Same with a second agent backend.
 
 ## M6: Linear to pull request
 
-- [ ] Receiver: signature, timestamp, dedup, label filter, size limit (E-HOOK pass).
-- [ ] Worker: fetch issue, clone, workspace without `.git`, run, validate patch (E-OUT pass),
-      apply on a clean clone, push, draft PR, comment on the issue.
-- [ ] Tunnel hostname rule before the wildcard, service on the board.
-- [ ] End-to-end on a sample repository.
+Done in S2 and S3 with `sbx` (receiver, job flow, tunnel rule, service). What remains is
+tracked there (E-HOOK, S3) and here:
+
+- [x] E-OUT-1 to E-OUT-5 covered by the `internal/patch` unit tests (workflows, `..`, symlinks,
+      `.git`, size limits).
+- [ ] E-OUT-6: a test for hostile titles and descriptions in the agent's final message.
 
 ## M7: layer 2
 

@@ -30,11 +30,14 @@ that code can reach.
 Internet ─▶ [Cloudflare] ─▶ receiver (host)            boundary A: signature + timestamp
 host ─▶ sandbox                                         boundary B: namespaces, cgroups, filters, VM
 sandbox ─▶ egress proxy (host)                          boundary C: one socket, allowlist, budget
-sandbox output ─▶ patch validator (host)                boundary D: output is hostile input
+sandbox output ─▶ manager (host)                        boundary D: workspace and events are hostile input
 host ─▶ GitHub (branch, draft PR) ─▶ CI ─▶ human merge  boundary E: review before merge
 ```
 
 ## Threats and mitigations
+
+The mitigations describe the target design. With Docker Sandboxes today, egress is open except
+the host, the LAN and metadata addresses (D14), and the key is injected by the `sbx` proxy.
 
 | # | Threat | Mitigation | Test |
 | --- | --- | --- | --- |
@@ -52,6 +55,7 @@ host ─▶ GitHub (branch, draft PR) ─▶ CI ─▶ human merge  boundary E: 
 | T12 | Malicious code merged by a human | Draft PR, clear bot label, diff limits; out of technical scope beyond that | — |
 | T13 | Budget drain | Trigger on label only; per-job budget in the proxy; concurrency limit | Proxy tests |
 | T14 | Data sent to the LLM provider | Accepted: the repository content is sent to the chosen provider by design. Choose providers and repositories accordingly | — |
+| T15 | Forged progress or results posted to Linear (fake "done", phishing links, mass mentions) | The worker never emits `response`; the manager posts its own after validation; size and rate limits, mentions stripped, only the manager's links (D33) | E-PROTO-* |
 
 ## Residual risks
 

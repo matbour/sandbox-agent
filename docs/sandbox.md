@@ -15,7 +15,7 @@ Go programs are multithreaded from the start, and some operations (joining a use
    `clone` time. It writes the UID and GID maps (`SysProcAttr.UidMappings`, `GidMappings`).
 2. **Child** (`/proc/self/exe init`, the same binary re-executed): runs inside the new namespaces,
    sets up mounts, `pivot_root`, hostname, drops capabilities, applies Landlock and seccomp, closes
-   every file descriptor it does not need, then `execve`s the agent.
+   every file descriptor it does not need, then `execve`s the worker (D33), which runs the agent.
 
 The re-executed binary must not be writable from inside the sandbox (see CVE-2019-5736). Options:
 copy it to a sealed `memfd` before re-exec, as runc does, or make sure the file the child execs is
@@ -42,7 +42,7 @@ User namespaces need the AppArmor profile described in [host.md](host.md), or a 
 ```
 /            read-only rootfs (minimal distribution + agent runtime + toolchains)
 /workspace   read-write, size-limited, the repository working tree (no .git from the host)
-/out         read-write, small, for changes.patch and summary.json
+/opt/sandbox-agent/worker   the worker binary, read-only (D33)
 /tmp         tmpfs, size-limited
 /proc        new procfs for the PID namespace, with hidepid if useful
 /dev         minimal: null, zero, full, random, urandom, tty, pts, shm (no block devices)
@@ -79,7 +79,7 @@ User namespaces need the AppArmor profile described in [host.md](host.md), or a 
 Restrict file access even inside the mount namespace (defense in depth):
 
 - read and execute: `/usr`, `/bin`, `/lib`, `/etc` (rootfs);
-- read and write: `/workspace`, `/out`, `/tmp`;
+- read and write: `/workspace`, `/tmp`;
 - nothing else.
 - With Landlock ABI 4 and later, also restrict TCP bind and connect (only the local forwarder port).
 

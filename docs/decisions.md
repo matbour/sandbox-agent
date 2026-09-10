@@ -180,7 +180,7 @@ the prompt, the logs and the patch.
 
 ## D24. Mention the agent in a Linear comment to update its pull request (2026-11-13)
 
-A comment that mentions the agent's Linear name (`@Sandbox Agent`, matched loosely) on an issue
+A comment that mentions the agent's Linear name (the application's name, matched loosely) on an issue
 where the agent already opened a pull request starts an update:
 
 1. The host clones the PR branch (blobless, full history) and merges the latest base branch into
@@ -202,7 +202,7 @@ model of the original job.
 ## D25. Linear agent mode: mention or delegate the application (2026-11-13)
 
 The application token is requested with `app:mentionable` and `app:assignable` on top of
-`read,write` (client credentials accept them), so "Sandbox Agent" can be mentioned through the `@`
+`read,write` (client credentials accept them), so the application can be mentioned through the `@`
 menu or delegated an issue. Linear then opens an agent session and sends an `AgentSessionEvent`
 (`created`, or `prompted` for a follow-up message) to the OAuth application's webhook.
 
@@ -313,6 +313,31 @@ input structs send unset fields as `null`, which could clear data such as a sess
 links; `IssueFilter` is bound to a map so its recursive filter types are not generated (8,400
 lines down to 1,400). genqlient needs `golang.org/x/tools` v0.38.0 to build with Go 1.27.
 `make generate` regenerates, `make linear-schema` refreshes the schema.
+
+## D33. Manager, worker and an event protocol modelled on Linear's agent sessions (2026-11-14)
+
+Full record: [decision/protocol.md](decision/protocol.md). In short:
+
+- One Go module, several binaries split by privilege: `agentd` (the manager, with the Linear and
+  GitHub credentials), `egress-proxy` (model keys, M4), `sandbox` (the layer 1 runtime), `worker`
+  and `escape` (inside the sandbox, no secrets). Providers stay packages inside `agentd` (D30);
+  seccomp, Landlock and AppArmor are hardening layers, not providers.
+- The worker knows nothing about Linear, GitHub or Git. It reads a task (rendered prompt, model,
+  setup script, limits) on stdin, works in the workspace, and writes events on stdout: `thought`,
+  `action`, then one terminal `ask`, `done` or `fail`. The manager diffs and validates the
+  workspace as before (D5).
+- The vocabulary mirrors Linear's agent activities, with our own types in `internal/task`. The
+  worker never emits `response`: `done` is a claim that the manager checks before it posts its own
+  response with the PR link.
+- The session state machine is the manager's. A session spans several runs, and each run is a fresh
+  sandbox. Nothing stays alive while a session waits for a person.
+- Worker output is hostile input: size and rate limits, strict parsing, mentions stripped,
+  self-reported cost labelled as such (E-PROTO tests).
+- An import test keeps `cmd/worker`, `cmd/sandbox` and `internal/task` free of `linear`, `github`,
+  `config` and `gitops`.
+
+Terminology: in D4 to D32, "worker" means the host-side job runner, which is now called the manager
+(`agentd`). From D33 on, "worker" means the process inside the sandbox.
 
 ## D34. No Linear personal API key (2026-11-15)
 

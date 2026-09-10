@@ -6,21 +6,24 @@ Move an item to [decisions.md](decisions.md) once settled.
 
 - Does Firecracker boot on the RK3588 with vCPUs pinned to cores 4-7? With 2 vCPUs? (M1)
 - GIC version and features exposed to guests on this board.
-- Final service identity: dedicated `sandbox-agent` user with an AppArmor profile and delegated
-  cgroup, or a root parent with heavy systemd hardening?
+- Final service identity: today a systemd user unit of the development account. Later: a dedicated
+  `sandbox-agent` user with an AppArmor profile and delegated cgroup, or a root parent with heavy
+  systemd hardening?
 - Workspace size limit: tmpfs (counts against memory) or a loop-mounted ext4 image per job?
 
 ## Agents
 
-- Exact non-interactive flags for the current Claude Code version, and its
-  arm64 install method.
-- Can both CLIs work with a placeholder API key and a custom base URL? Any other endpoint they call
-  at startup (telemetry, update checks) that must be disabled or routed?
-- Which models, and what typical cost per issue on a small repository?
+- Claude Code's flags are settled ([agents.md](agents.md)), and so are the models and their cost
+  (D16, D20: $0.20 for a first real issue with Sonnet). Still open for any second backend:
+  non-interactive flags and arm64 install.
+- Can both CLIs work with a placeholder API key and a custom base URL (egress proxy, M4)? Any other
+  endpoint they call at startup (telemetry, update checks) that must be disabled or routed?
 
 ## Dependencies
 
-Agents need to install dependencies and run tests. Options, from safest to most convenient:
+Agents need to install dependencies and run tests. Today the `sbx` policy is open (D14) and the
+setup script installs from the public registries. Options for a closed policy, from safest to
+most convenient:
 
 1. Pre-built rootfs per repository with dependencies baked in; no registry access.
 2. Dependencies fetched on the host (in a separate sandbox with registry access only), then mounted
@@ -35,9 +38,14 @@ Agents need to install dependencies and run tests. Options, from safest to most 
 
 ## Linear
 
-- Webhook headers and payload: `Linear-Signature` (HMAC-SHA256 of the raw body, hex) and the
-  `webhookTimestamp` field; confirm against the current documentation, including whether Linear
-  publishes the source IP ranges.
-- Label trigger versus assignment to a bot user versus Linear's agent integration.
-- Target workspace and repository: see the private notes. Develop against a sample repository and
-  a dedicated label first.
+- Signatures and timestamps are settled and checked from outside (D22). Still open: whether
+  Linear publishes its webhook source IP ranges.
+- Triggers are settled: label (D15, D20), mention and delegation through agent sessions (D25, D27).
+- Which session status Linear shows after each activity type. The guide only says it follows the
+  last activity ([decision/protocol.md](decision/protocol.md)).
+
+## Protocol (D33)
+
+- Does `sbx exec` stream stdin and stdout without a TTY?
+- Can the cost be measured outside the sandbox while `sbx` is the provider, or does it stay
+  self-reported until the egress proxy (M4)?

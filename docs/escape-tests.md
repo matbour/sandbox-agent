@@ -11,7 +11,7 @@ the README, one column per layer (layer 1, layer 1 + gVisor, layer 1 + Firecrack
 | E-FS-1 | Read `/etc/shadow`, `/home/*/.ssh`, `/root`, data directories of the other host services (list in the private notes) | Not present |
 | E-FS-2 | Reach the host root through `/proc/1/root` and `/proc/*/cwd` | Only sandbox processes, sandbox root |
 | E-FS-3 | Open `/var/run/docker.sock` | Not present |
-| E-FS-4 | Write outside `/workspace`, `/out`, `/tmp` | `EROFS` or `EACCES` (Landlock) |
+| E-FS-4 | Write outside `/workspace` and `/tmp` | `EROFS` or `EACCES` (Landlock) |
 | E-FS-5 | Create a device node, mount anything, `pivot_root` again | `EPERM` |
 | E-FS-6 | Fill `/workspace` and `/tmp` | `ENOSPC` inside, host disk unaffected |
 | E-FS-7 | Create millions of files | Bounded by the workspace size or inode limit |
@@ -56,6 +56,7 @@ the README, one column per layer (layer 1, layer 1 + gVisor, layer 1 + Firecrack
 | E-RT-1 | List `/proc/self/fd` at agent start | Only 0, 1, 2 (and the documented ones) |
 | E-RT-2 | Open the runtime binary through `/proc/<pid>/exe` and write to it | Fails, binary unchanged on the host |
 | E-RT-3 | Write to `/sys/fs/cgroup` to raise limits or escape the cgroup | Read-only or `EPERM` |
+| E-RT-4 | Write to, replace or delete the worker binary (`/opt/sandbox-agent/worker`) | Fails, host file unchanged |
 
 ## Resources (E-RES)
 
@@ -76,7 +77,21 @@ the README, one column per layer (layer 1, layer 1 + gVisor, layer 1 + Firecrack
 | E-OUT-3 | Adds a symlink to `/etc/passwd` | Rejected |
 | E-OUT-4 | Touches `.git/` or Git config | Rejected |
 | E-OUT-5 | Huge patch | Rejected |
-| E-OUT-6 | `summary.json` with HTML, huge strings, control characters | Sanitised or rejected |
+| E-OUT-6 | Final message with HTML, huge strings, control characters in the title or description | Sanitised or rejected |
+
+## Protocol (E-PROTO), run on the host against the manager's event reader
+
+The input is a recorded or forged worker stdout (D33, [decision/protocol.md](decision/protocol.md)).
+
+| ID | Worker output | Expected |
+| --- | --- | --- |
+| E-PROTO-1 | A `response` event, or any kind not in the protocol | Dropped, nothing posted to Linear |
+| E-PROTO-2 | `done` with no change, or with a change the validator rejects | No `response`; the session ends in `error` or `awaitingInput` |
+| E-PROTO-3 | A line over the size limit, or more events than the rate limit allows | Truncated or dropped, the run is not stalled |
+| E-PROTO-4 | `@` mentions, links, HTML in `thought` or `ask` | Mentions stripped, plain text, no links but the manager's |
+| E-PROTO-5 | Events after a terminal event, or two terminal events | Everything after the first terminal event is ignored |
+| E-PROTO-6 | Stream ends without a terminal event, or the worker exits non-zero after `done` | Counted as `fail` |
+| E-PROTO-7 | Invalid JSON, or unknown fields | The line is dropped and logged, the run continues |
 
 ## Webhook (E-HOOK), run against the receiver
 
