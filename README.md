@@ -7,9 +7,11 @@ Status: work in progress.
 
 ## Goal
 
-When an issue is created in Linear, a signed webhook reaches the host. The host clones the repository,
-starts an isolated sandbox, and runs a coding agent (Claude Code) inside it. The
-sandbox returns a diff; the host, not the sandbox, opens the pull request.
+When an issue is labelled or delegated to the agent in Linear, the host clones the repository,
+starts an isolated sandbox, and runs a coding agent (Claude Code today, other agent CLIs later) inside it. The
+host takes the changed working tree, validates it, and opens the pull request itself. Inside the
+sandbox there is no Linear, GitHub or Git, only a task and the workspace
+([docs/decision/protocol.md](docs/decision/protocol.md)).
 
 ## Security principles
 
@@ -32,7 +34,7 @@ also runs other services, which makes isolation from the host and the LAN a hard
 
 Design, threat model, escape tests and roadmap: [docs/](docs/README.md).
 
-## Running the worker
+## Running agentd
 
 `agentd` polls Linear for issues labelled `agent` (default model) or `agent-<model>` (`agent-haiku`,
 `agent-sonnet`, `agent-opus`, `agent-fable`), runs Claude Code on each one inside a Docker
@@ -54,7 +56,7 @@ In Linear, **mention** the agent with a question to get research notes (it reads
 the docs, changes nothing), and **assign** (delegate) the issue to it to have it implemented.
 
 To update a pull request opened by the agent, mention it in a comment on the Linear issue
-(`@Sandbox Agent please also handle the empty state`): it merges the latest `main`, reads your
+(`@<agent name> please also handle the empty state`): it merges the latest `main`, reads your
 comment, the PR reviews and the failed checks, and pushes to the same branch.
 
 After pushing, `agentd` waits for the pull request's checks, runs up to two fix passes if they
@@ -70,8 +72,9 @@ watch -n 5 bin/agentd -status
 ```
 
 The same overview is served at `http://127.0.0.1:8787/` (and through the tunnel, behind
-Cloudflare Access; see docs/decisions.md D22). All jobs are in `~/.local/state/sandbox-agent/state.json` (one file, written atomically under a
-lock); each job directory under `jobs/` keeps the prompt, the logs and the patch.
+Cloudflare Access; see docs/decisions.md D22). All jobs are in
+`~/.local/state/sandbox-agent/state.json` (one file, written atomically under a lock); each job
+directory under `jobs/` keeps the prompt, the logs and the patch.
 
 Try the sandbox part on a local repository, without Linear or GitHub:
 
@@ -82,7 +85,7 @@ bin/agentd -try ~/some/repo -task "Describe the change" [-model claude-opus-5-5]
 ## Development
 
 ```bash
-make build    # build bin/sandbox (linux/arm64, static)
+make build    # build bin/agentd and bin/sandbox (linux/arm64, static)
 make test     # run the tests
 ```
 

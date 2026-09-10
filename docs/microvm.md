@@ -17,7 +17,7 @@ vsock, serial), fast boot, small attack surface. It supports aarch64.
 - Firecracker's aarch64 support targets server CPUs (Graviton). Interrupt controller (GICv3 on the
   RK3588, to confirm) and timer support need a real test.
 
-### Spike (Friday, about 30 minutes)
+### Spike
 
 Goal: one microVM boots to a shell on the board.
 
@@ -40,6 +40,19 @@ Goal: one microVM boots to a shell on the board.
   cgroup), like Firecracker's `jailer` does. The `jailer` needs root; our runtime can play its role.
 - Snapshot and restore for fast starts is a stretch goal.
 
+## Option A2: Cloud Hypervisor
+
+Cloud Hypervisor is a Rust VMM on KVM from the same rust-vmm family as Firecracker, with a wider
+device model: PCI, so device passthrough (GPUs), hotplug, virtio-fs, vsock. It supports aarch64 and
+has snapshot and restore built in. It is driven through an HTTP API on a Unix socket (and
+`ch-remote`), like Firecracker.
+
+Why it is worth trying next to Firecracker: a VMM that can pass a GPU through is the one a
+serverless platform for AI workloads ends up on, and the same big.LITTLE pinning question applies.
+Known pitfall from published experience: virtio-fs devices do not always survive a restore, so keep
+the workspace on a block device. Firmware or direct kernel boot on arm64, and the snapshot state on
+arm64: to verify in the spike.
+
 ## Option B: gVisor
 
 gVisor (`runsc`) implements the Linux syscall interface in a user-space kernel (the Sentry), written in
@@ -51,28 +64,19 @@ Go. The agent's syscalls hit the Sentry, which uses a small set of host syscalls
 - Trade-off: slower for syscall-heavy work (builds, `git`, `npm install`), and some syscalls are
   missing. Measure on a real repository.
 
-## Reference point: Docker Sandboxes
+## Docker Sandboxes, the provider in use
 
-Docker ships its own sandbox for coding agents (`docker sandbox run <agent>`). It is not a layer of
-this project, only a point of comparison in the write-up: an off-the-shelf answer to the same problem.
-
-- Isolation: each sandbox runs in its own microVM with a private Docker daemon (to verify: version
-  and hypervisor per platform).
-- Network: egress through a host-side proxy with allow and deny rules (to verify: whether it can
-  inject API keys the way our proxy does, or whether the key must enter the sandbox, which D4 forbids).
-- Workspace: the project directory is synced into the sandbox, `.git` included (to verify), unlike
-  D5.
-- Platforms: Docker Desktop on macOS and Windows; Linux support to verify.
-- **Not run on the board.** It needs Docker, and the development account is not in `docker`, which
-  is shared with the production services. Measure it on another machine and say so next to the
-  numbers.
+Docker Sandboxes (`sbx`) started as a point of comparison and became the first provider (D11): a
+KVM microVM per job, run without Docker Engine or the `docker` group. Measurements, the network
+policy and the lessons learnt are in [docker-sandboxes.md](docker-sandboxes.md). It passes the
+conformance suite in 12.5 s, with 7 s to start a sandbox (D30).
 
 ## Comparison to show in the write-up
 
 | | Layer 1 only | Layer 1 + gVisor | Layer 1 + Firecracker | Docker Sandboxes |
 | --- | --- | --- | --- | --- |
-| Kernel shared with host | Yes | No (Sentry), host syscalls filtered | No (guest kernel), KVM boundary | No (guest kernel in a microVM), to verify |
-| Start time | to measure | to measure | to measure | to measure (not on the board) |
-| Build time on a sample repository | to measure | to measure | to measure | to measure (not on the board) |
-| Memory overhead | to measure | to measure | to measure | to measure (not on the board) |
-| Escape tests passed | to measure | to measure | to measure | to measure, where the tests apply |
+| Kernel shared with host | Yes | No (Sentry), host syscalls filtered | No (guest kernel), KVM boundary | No (guest kernel 7.0.14 in a microVM) |
+| Start time | to measure | to measure | to measure | 8.2 s to create with the image cached, 7 s in the conformance suite |
+| Install time on the target monorepo | to measure | to measure | to measure | 123 s for `bun install` (4 CPUs, 4 GiB) |
+| Memory overhead | to measure | to measure | to measure | about 1.4 GB RSS for a 2 GiB sandbox; page cache dropped (D29) |
+| Escape tests passed | to measure | to measure | to measure | conformance suite passes; escape tests to script (S1) |

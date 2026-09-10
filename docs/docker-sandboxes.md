@@ -102,7 +102,7 @@ CPU pinning: there is no option, and the VM does not inherit the CLI's affinity.
 daemon's: start the daemon with `setsid taskset -c 4-7 sbx daemon start` (after `sbx daemon stop`)
 and every `docker-docklet` thread lands on 4-7. Changing a running VM with `taskset -ap` also works.
 If the daemon is auto-started by a plain `sbx` call (after a reboot, for example), it is unpinned:
-the worker must check the daemon's affinity before each job.
+`agentd` checks the daemon's affinity before each job.
 
 Timings:
 

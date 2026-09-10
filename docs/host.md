@@ -91,4 +91,4 @@ Installed system-wide: `git`, `nft`, `make`, `rsync`.
 Go is installed in the development account's home (`~/.local/go`, official tarball, checksum
 verified), not system-wide, so the toolchain does not touch the rest of the host. The repository is
 checked out in `~/sandbox-agent` and built there with `make build` (`GOOS=linux GOARCH=arm64
-CGO_ENABLED=0`, output `bin/sandbox`). See decision D10.
+CGO_ENABLED=0`, output `bin/agentd` and `bin/sandbox`). See decision D10.
