@@ -6,6 +6,10 @@ a second layer. See [README.md](README.md).
 
 Everything in this repository is in English: code, docs and commit messages.
 
+In conversation, answer in the language of the owner's last message: English when they write in
+English, French when they switch to French, and back again. This applies only to replies; what goes
+into the repository stays in English.
+
 ## Knowledge base
 
 Detailed context lives in [`docs/`](docs/README.md). Read the relevant file before working on a
