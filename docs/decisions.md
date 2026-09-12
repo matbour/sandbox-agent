@@ -347,12 +347,19 @@ activities need the application token anyway (personal keys cannot publish agent
 key was tied to the owner's account, and one mode means one code path. `agentd` refuses to start
 without `secrets/linear-client-id` and `secrets/linear-client-secret`.
 
-## D35. GitHub Actions: build, test and lint through the Makefile (2026-11-15)
+## D35. GitHub Actions: build, test and lint (2026-11-15)
 
-`.github/workflows/ci.yml` runs three jobs on every push to `main` and every pull request: `make
-build`, `make test` and `make lint`, the same targets as the Git hooks, so CI and a local run do
-the same thing and golangci-lint keeps the version pinned in the Makefile. The runners are x86-64:
-`make build` cross-compiles for linux/arm64, and the tests that start real sandboxes skip without
-`SANDBOX_IT=1`. Third-party actions are pinned to a commit SHA, with the tag in a comment. The
-token is read-only, and checkout does not keep it in `.git/config`. Every workflow, job and step
-has a name.
+`.github/workflows/ci.yml` runs three jobs on every push to `main` and every pull request. Build and
+Test call `make build` and `make test`, the same targets as the Git hooks. Lint uses the official
+`golangci/golangci-lint-action` at the golangci-lint version the Makefile pins, so `make lint` and
+CI agree; the two must change together. The runners are x86-64: `make build` cross-compiles for
+linux/arm64, and the tests that start real sandboxes skip without `SANDBOX_IT=1`. Third-party
+actions are pinned to a commit SHA, with the tag in a comment. The token is read-only, and checkout
+does not keep it in `.git/config`. Every workflow, job and step has a name.
+
+Annotations on the offending lines come from problem matchers: setup-go registers a Go matcher that
+reads compiler, vet and golangci-lint output. GitHub shows at most 10 error annotations per step, so
+with many issues only the first ones are annotated and the log lists the rest. Annotating every line
+would need the Checks API (a tool of our own, or reviewdog); not worth maintaining for this project.
+`.golangci.yml` lifts golangci-lint's defaults (3 issues of a kind, 50 per linter), which hid half
+of the issues.

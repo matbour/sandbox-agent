@@ -7,6 +7,7 @@ BIN := bin/sandbox
 
 # Run with `go run` at a pinned version rather than as a go.mod tool: golangci-lint's many
 # dependencies would otherwise share our module graph and could bump our own versions.
+# CI pins the same version in .github/workflows/ci.yml: change both together.
 GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 
 .PHONY: build test lint fmt check hooks generate linear-schema clean

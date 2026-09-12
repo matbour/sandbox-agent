@@ -7,3 +7,9 @@ formatters:
   enable:
     - gofmt
     - goimports
+
+# Report every issue: by default golangci-lint shows 3 of a kind and 50 per linter, so CI would
+# annotate only some of the lines to fix.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

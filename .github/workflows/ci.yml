@@ -1,6 +1,10 @@
-# Build, test and lint on every push to main and every pull request. Each job calls the same
-# Makefile target as the Git hooks (lefthook.yml), so CI and a local run do the same thing.
-# Actions are pinned to a commit SHA (D35); the comment gives the tag.
+# Build, test and lint on every push to main and every pull request. Build and Test call the same
+# Makefile targets as the Git hooks (lefthook.yml); Lint uses the official golangci-lint action,
+# at the version pinned in the Makefile. Actions are pinned to a commit SHA (D35); the comment
+# gives the tag.
+#
+# Annotations come from problem matchers (setup-go's Go matcher), so GitHub shows at most 10
+# errors per step on the lines; the log lists every issue.
 name: CI
 
 on:
@@ -62,4 +66,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run golangci-lint
-        run: make lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0 # same as GOLANGCI_LINT in the Makefile
