@@ -346,3 +346,13 @@ personal API key (`secrets/linear-api-key`, `LINEAR_API_KEY`) is gone: agent ses
 activities need the application token anyway (personal keys cannot publish agent activities), the
 key was tied to the owner's account, and one mode means one code path. `agentd` refuses to start
 without `secrets/linear-client-id` and `secrets/linear-client-secret`.
+
+## D35. GitHub Actions: build, test and lint through the Makefile (2026-11-15)
+
+`.github/workflows/ci.yml` runs three jobs on every push to `main` and every pull request: `make
+build`, `make test` and `make lint`, the same targets as the Git hooks, so CI and a local run do
+the same thing and golangci-lint keeps the version pinned in the Makefile. The runners are x86-64:
+`make build` cross-compiles for linux/arm64, and the tests that start real sandboxes skip without
+`SANDBOX_IT=1`. Third-party actions are pinned to a commit SHA, with the tag in a comment. The
+token is read-only, and checkout does not keep it in `.git/config`. Every workflow, job and step
+has a name.
