@@ -1,5 +1,5 @@
-# Git hooks. Install with `make hooks`. Each command calls a Makefile target, so a hook and a
-# manual run do the same thing. Skip once with `LEFTHOOK=0 git commit ...`.
+# Git hooks. Install with `make hooks`. Each command calls a Makefile target or a script in
+# scripts/, so a hook and a manual run do the same thing. Skip once with `LEFTHOOK=0 git commit ...`.
 
 pre-commit:
   parallel: true
@@ -11,7 +11,17 @@ pre-commit:
       glob: "*.{go,mod,sum}"
       run: make build
 
+# Conventional Commits (D36): checked when the message is written, and again for every commit
+# about to be pushed, so a message made with --no-verify or by a rebase is caught before it leaves.
+commit-msg:
+  commands:
+    conventional-commits:
+      run: scripts/check-commit-messages.sh {1}
+
 pre-push:
   commands:
+    commit-messages:
+      use_stdin: true
+      run: scripts/check-commit-messages.sh --pre-push
     test:
       run: make test

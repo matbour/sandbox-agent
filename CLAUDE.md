@@ -6,6 +6,9 @@ a second layer. See [README.md](README.md).
 
 Everything in this repository is in English: code, docs and commit messages.
 
+Commit messages follow Conventional Commits (`feat(linear): …`, `fix: …`, `docs: …`), checked by the
+`commit-msg` and `pre-push` hooks (D36, `scripts/check-commit-messages.sh`).
+
 In conversation, answer in the language of the owner's last message: English when they write in
 English, French when they switch to French, and back again. This applies only to replies; what goes
 into the repository stays in English.

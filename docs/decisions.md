@@ -363,3 +363,18 @@ with many issues only the first ones are annotated and the log lists the rest. A
 would need the Checks API (a tool of our own, or reviewdog); not worth maintaining for this project.
 `.golangci.yml` lifts golangci-lint's defaults (3 issues of a kind, 50 per linter), which hid half
 of the issues.
+
+## D36. Conventional Commits, checked by Git hooks (2026-11-15)
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org):
+`<type>[(scope)][!]: <description>`, with the types `build`, `chore`, `ci`, `docs`, `feat`, `fix`,
+`perf`, `refactor`, `revert`, `style` and `test`, a lowercase scope (the package or area: `linear`,
+`job`, `sbx`, `web`…), a lowercase imperative description without a final period, and a subject of
+at most 72 characters. `!` marks a breaking change, such as a removed setting. The whole history
+was rewritten to this format on 2026-11-15 (subjects only; bodies, authors and dates unchanged).
+
+`scripts/check-commit-messages.sh` is the check, a POSIX shell script with no dependency. Lefthook
+runs it twice: `commit-msg` on the message being written, and `pre-push` on every commit about to
+be pushed, which also catches messages made with `--no-verify` or by a rebase. `fixup!` and
+`squash!` commits pass locally and are refused on push. Hooks only run where `make hooks` was run;
+CI does not check messages.
