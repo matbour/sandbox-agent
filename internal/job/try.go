@@ -17,16 +17,21 @@ func (r *Runner) Try(ctx context.Context, localRepo, task, model string) (*Execu
 	if err != nil {
 		return nil, "", err
 	}
+
 	dir, repoDir, ws, stamp := w.dir, w.repo, w.ws, w.stamp
 	// Plain local clone: the source is the operator's own repository, not agent output.
 	if b, err := exec.CommandContext(ctx, "git", "clone", "-q", "--no-hardlinks", localRepo, repoDir).CombinedOutput(); err != nil {
 		return nil, dir, fmt.Errorf("git clone: %w: %s", err, b)
 	}
+
 	if err := prepare(ctx, repoDir, ws); err != nil {
 		return nil, dir, err
 	}
+
 	var is linear.Issue
+
 	is.Identifier, is.Title, is.Description = "TRY-1", firstLine(task), task
+
 	update(dir, func(st *State) {
 		st.Issue, st.Title, st.Model = "try", is.Title, model
 		st.Stage, st.PID, st.Started = StageSetup, os.Getpid(), time.Now().UTC()
@@ -36,11 +41,13 @@ func (r *Runner) Try(ctx context.Context, localRepo, task, model string) (*Execu
 		if ex != nil {
 			st.CostUSD, st.Turns = ex.CostUSD, ex.Turns
 		}
+
 		if err != nil {
 			st.Stage, st.Error = StageFailed, truncate(err.Error(), 2000)
 		} else {
 			st.Stage = StageDone
 		}
 	})
+
 	return ex, dir, err
 }

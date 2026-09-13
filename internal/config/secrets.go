@@ -31,13 +31,16 @@ func CheckPrivate(path string) error {
 	if err != nil {
 		return err
 	}
+
 	if st.Mode().Perm()&0o077 != 0 {
 		want := "0600"
 		if st.IsDir() {
 			want = "0700"
 		}
+
 		return fmt.Errorf("%s has mode %04o: run chmod %s %s", path, st.Mode().Perm(), want, path)
 	}
+
 	return nil
 }
 
@@ -47,10 +50,13 @@ func readSecret(dir, name string) (string, error) {
 	if _, err := os.Stat(p); os.IsNotExist(err) {
 		return "", nil
 	}
+
 	if err := CheckPrivate(p); err != nil {
 		return "", err
 	}
+
 	b, err := os.ReadFile(p)
+
 	return strings.TrimSpace(string(b)), err
 }
 

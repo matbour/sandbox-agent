@@ -6,6 +6,7 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+
 	return s[:n] + "…"
 }
 
@@ -14,6 +15,7 @@ func lastLines(s string, n int) string {
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
+
 	return strings.Join(lines, "\n")
 }
 
@@ -31,5 +33,6 @@ func firstSentence(s string) string {
 	if i := strings.Index(s, ". "); i > 0 && i < 300 {
 		return s[:i+1]
 	}
+
 	return truncate(s, 300)
 }

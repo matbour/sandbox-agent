@@ -47,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 	mux.Handle("GET /api/jobs", s.people(http.HandlerFunc(s.apiJobs)))
 	mux.Handle("GET /{$}", s.people(http.HandlerFunc(s.overview)))
+
 	return securityHeaders(mux)
 }
 
@@ -56,20 +57,27 @@ func (s *Server) ListenAndServe(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
+
 	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
 		return fmt.Errorf("refusing to listen on %s: use a loopback address, the tunnel connects locally", addr)
 	}
+
 	srv := &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, MaxHeaderBytes: 32 << 10}
+
 	go func() {
 		<-ctx.Done()
+
 		shut, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		_ = srv.Shutdown(shut)
 	}()
+
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+
 	return nil
 }
 
@@ -80,16 +88,20 @@ func (s *Server) people(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r) // from the host itself, not through the tunnel
 			return
 		}
+
 		if s.Access == nil {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+
 		claims, err := s.Access.Verify(r.Context(), r.Header.Get("Cf-Access-Jwt-Assertion"))
 		if err != nil {
 			s.Log.Warn("access denied", "path", r.URL.Path, "err", err)
 			http.Error(w, "forbidden", http.StatusForbidden)
+
 			return
 		}
+
 		r.Header.Set("X-Agentd-User", claims.Email)
 		next.ServeHTTP(w, r)
 	})
@@ -99,6 +111,7 @@ func (s *Server) clock() time.Time {
 	if s.now != nil {
 		return s.now()
 	}
+
 	return time.Now()
 }
 

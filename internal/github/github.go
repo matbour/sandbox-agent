@@ -32,6 +32,7 @@ func NewApp(id, installationID, keyPath string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return newApp(id, installationID, key, "")
 }
 
@@ -40,20 +41,25 @@ func newApp(id, installationID string, key []byte, baseURL string) (*App, error)
 	if err != nil {
 		return nil, fmt.Errorf("github: App ID %q: %w", id, err)
 	}
+
 	instID, err := strconv.ParseInt(installationID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("github: installation ID %q: %w", installationID, err)
 	}
+
 	tr, err := ghinstallation.NewAppsTransport(http.DefaultTransport, appID, key)
 	if err != nil {
 		return nil, fmt.Errorf("github: App key: %w", err)
 	}
+
 	a := &App{ID: appID, InstallationID: instID, HTTP: &http.Client{Timeout: 30 * time.Second}, baseURL: baseURL}
 	if baseURL != "" {
 		tr.BaseURL = strings.TrimSuffix(baseURL, "/")
 	}
+
 	opts := []gh.ClientOptionsFunc{gh.WithHTTPClient(&http.Client{Transport: tr, Timeout: 30 * time.Second})}
 	a.apps, err = gh.NewClient(append(opts, baseOpts(baseURL)...)...)
+
 	return a, err
 }
 
@@ -70,10 +76,12 @@ func (a *App) InstallationToken(ctx context.Context, repos ...string) (*Token, e
 	if len(repos) > 0 {
 		opts = &gh.InstallationTokenOptions{Repositories: repos}
 	}
+
 	t, _, err := a.apps.Apps.CreateInstallationToken(ctx, a.InstallationID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("github: installation token: %w", err)
 	}
+
 	return &Token{Value: t.GetToken(), ExpiresAt: t.GetExpiresAt().Time}, nil
 }
 
@@ -94,12 +102,15 @@ func (r *Repo) gh() *gh.Client {
 		if r.HTTP != nil {
 			opts = append(opts, gh.WithHTTPClient(r.HTTP))
 		}
+
 		c, err := gh.NewClient(append(opts, baseOpts(r.baseURL)...)...)
 		if err != nil {
 			panic(err) // only reachable with a malformed test base URL
 		}
+
 		r.client = c
 	}
+
 	return r.client
 }
 
@@ -114,6 +125,7 @@ func (r *Repo) DefaultBranch(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("github: repository: %w", err)
 	}
+
 	return repo.GetDefaultBranch(), nil
 }
 
@@ -122,5 +134,6 @@ func baseOpts(base string) []gh.ClientOptionsFunc {
 	if base == "" {
 		return nil
 	}
+
 	return []gh.ClientOptionsFunc{gh.WithURLs(&base, &base)}
 }

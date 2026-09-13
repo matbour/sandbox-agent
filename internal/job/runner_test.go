@@ -12,6 +12,7 @@ import (
 func testRunner(t *testing.T) *Runner {
 	c := &config.Config{TriggerLabel: "agent", AgentModel: "default", StateDir: t.TempDir(),
 		ModelLabels: []config.ModelLabel{{Label: "agent-haiku", Model: "haiku"}, {Label: "agent-opus", Model: "opus"}}}
+
 	return &Runner{Cfg: c}
 }
 
@@ -32,23 +33,30 @@ func TestRequestModel(t *testing.T) {
 
 func TestWorkdir(t *testing.T) {
 	r := testRunner(t)
+
 	w, err := r.newWorkdir("ENG-750", "update")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if w.slug != "eng-750" || !strings.HasPrefix(filepath.Base(w.dir), "eng-750-update-") {
 		t.Fatalf("names: %+v", w)
 	}
+
 	if err := os.WriteFile(filepath.Join(w.dir, "agent.json"), []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(w.repo, ".git"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+
 	cleanWorkdir(w.dir)
+
 	if _, err := os.Stat(w.ws); !os.IsNotExist(err) {
 		t.Fatal("workspace not removed")
 	}
+
 	if _, err := os.Stat(filepath.Join(w.dir, "agent.json")); err != nil {
 		t.Fatal("logs removed")
 	}

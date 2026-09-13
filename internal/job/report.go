@@ -31,6 +31,7 @@ func (c commentReporter) post(ctx context.Context, text string) {
 	} else {
 		err = c.lc.Comment(ctx, c.Issue, Marker+": "+text)
 	}
+
 	if err != nil {
 		c.log.Warn("cannot comment on issue", "err", err)
 	}
@@ -87,6 +88,7 @@ var stageText = map[string]string{
 // stage records the job's stage and, for agent sessions, shows it in Linear.
 func stage(ctx context.Context, dir, s string) {
 	setStage(dir, s)
+
 	if r, ok := ctx.Value(reporterKey{}).(Reporter); ok && stageText[s] != "" {
 		r.Progress(ctx, stageText[s])
 	}

@@ -80,6 +80,7 @@ func (s *State) Elapsed(now time.Time) time.Duration {
 	} else if s.Stage == StageInterrupted {
 		end = s.Updated
 	}
+
 	return end.Sub(s.Started).Round(time.Second)
 }
 
@@ -92,22 +93,29 @@ func withState(root string, write bool, fn func(*stateFile) error) error {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
 	}
+
 	lock, err := os.OpenFile(filepath.Join(root, StateFile+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
+
 	defer func() { _ = lock.Close() }() // closing also releases the lock
+
 	how := syscall.LOCK_SH
 	if write {
 		how = syscall.LOCK_EX
 	}
+
 	if err := syscall.Flock(int(lock.Fd()), how); err != nil {
 		return err
 	}
+
 	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 
 	path := filepath.Join(root, StateFile)
+
 	var sf stateFile
+
 	b, err := os.ReadFile(path)
 	switch {
 	case err == nil:
@@ -117,18 +125,23 @@ func withState(root string, write bool, fn func(*stateFile) error) error {
 	case !errors.Is(err, os.ErrNotExist):
 		return err
 	}
+
 	if err := fn(&sf); err != nil || !write {
 		return err
 	}
+
 	sf.Version = 1
+
 	out, err := json.MarshalIndent(&sf, "", "  ")
 	if err != nil {
 		return err
 	}
+
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, out, 0o600); err != nil {
 		return err
 	}
+
 	return os.Rename(tmp, path)
 }
 
@@ -138,23 +151,28 @@ func update(dir string, fn func(*State)) {
 	_ = withState(stateRoot(dir), true, func(sf *stateFile) error {
 		id := filepath.Base(dir)
 		i := -1
+
 		for k := range sf.Jobs {
 			if sf.Jobs[k].ID == id {
 				i = k
 				break
 			}
 		}
+
 		if i < 0 {
 			sf.Jobs = append(sf.Jobs, State{ID: id, Dir: dir})
 			i = len(sf.Jobs) - 1
 		}
+
 		s := &sf.Jobs[i]
 		fn(s)
+
 		s.Updated = time.Now().UTC()
 		if (s.Stage == StageDone || s.Stage == StageFailed) && s.Finished == nil {
 			t := s.Updated
 			s.Finished = &t
 		}
+
 		return nil
 	})
 }
@@ -165,6 +183,7 @@ func setStage(dir, stage string) { update(dir, func(s *State) { s.Stage = stage 
 // interrupted.
 func Jobs(stateDir string) ([]State, error) {
 	var out []State
+
 	err := withState(stateDir, false, func(sf *stateFile) error {
 		out = append(out, sf.Jobs...)
 		return nil
@@ -172,12 +191,15 @@ func Jobs(stateDir string) ([]State, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	for i := range out {
 		if !out[i].Terminal() && !alive(out[i].PID) {
 			out[i].Stage = StageInterrupted
 		}
 	}
+
 	sort.Slice(out, func(i, j int) bool { return out[i].Started.After(out[j].Started) })
+
 	return out, nil
 }
 
@@ -188,36 +210,45 @@ func Import(stateDir string) (int, error) {
 	if err != nil || len(files) == 0 {
 		return 0, err
 	}
+
 	n := 0
+
 	err = withState(stateDir, true, func(sf *stateFile) error {
 		have := map[string]bool{}
 		for _, j := range sf.Jobs {
 			have[j.ID] = true
 		}
+
 		for _, f := range files {
 			b, err := os.ReadFile(f)
 			if err != nil {
 				continue
 			}
+
 			var s State
 			if json.Unmarshal(b, &s) != nil {
 				continue
 			}
+
 			s.Dir = filepath.Dir(f)
+
 			s.ID = filepath.Base(s.Dir)
 			if !have[s.ID] {
 				sf.Jobs = append(sf.Jobs, s)
 				n++
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
 		return n, err
 	}
+
 	for _, f := range files {
 		_ = os.Remove(f)
 	}
+
 	return n, nil
 }
 
@@ -225,6 +256,7 @@ func alive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
+
 	return syscall.Kill(pid, 0) == nil
 }
 
@@ -236,5 +268,6 @@ func LastPR(root, issue string) (pr, model string) {
 			return j.PR, j.Model
 		}
 	}
+
 	return "", ""
 }

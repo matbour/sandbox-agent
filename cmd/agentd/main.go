@@ -34,9 +34,11 @@ func main() {
 	model := flag.String("model", "", "model for -try (default AGENT_MODEL)")
 	status := flag.Bool("status", false, "show the service, the queue and recent jobs")
 	show := flag.String("show", "", "show the latest job for an issue (e.g. ENG-750)")
+
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -46,6 +48,7 @@ func main() {
 		if err != nil {
 			fail(log, "config", err)
 		}
+
 		if err := runStatus(cfg, *show); err != nil {
 			fail(log, "status", err)
 		}
@@ -54,6 +57,7 @@ func main() {
 		if err != nil {
 			fail(log, "config", err)
 		}
+
 		if err := runTry(ctx, cfg, log, *try, *task, *model); err != nil {
 			fail(log, "try", err)
 		}
@@ -62,15 +66,18 @@ func main() {
 		if err != nil {
 			fail(log, "config", err)
 		}
+
 		r, err := newRunner(cfg, log)
 		if err != nil {
 			fail(log, "setup", err)
 		}
+
 		if *check {
 			err = runCheck(ctx, r)
 		} else {
 			err = serve(ctx, r, *once)
 		}
+
 		if err != nil {
 			fail(log, "agentd", err)
 		}
@@ -83,14 +90,18 @@ func newRunner(cfg *config.Config, log *slog.Logger) (*job.Runner, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
 		return nil, err
 	}
+
 	lc := linear.New(cfg.LinearClientID, cfg.LinearSecret, filepath.Join(cfg.StateDir, "linear-token.json"))
+
 	sp, err := providers.New(cfg.Provider, sandbox.Options{CPUSet: cfg.CPUs})
 	if err != nil {
 		return nil, err
 	}
+
 	return &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log, Sandbox: sp}, nil
 }
 
@@ -105,8 +116,10 @@ func defaultSecrets() string {
 	if err != nil {
 		return "secrets"
 	}
+
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return "secrets"
 	}
+
 	return filepath.Join(filepath.Dir(filepath.Dir(exe)), "secrets")
 }

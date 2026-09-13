@@ -44,19 +44,24 @@ func (g *Git) Run(ctx context.Context, args ...string) (string, error) {
 	for _, c := range hardening {
 		full = append(full, "-c", c)
 	}
+
 	if g.WorkTree != "" {
 		full = append(full, "--git-dir="+g.Dir+"/.git", "--work-tree="+g.WorkTree)
 	}
+
 	full = append(full, args...)
+
 	cmd := exec.CommandContext(ctx, "git", full...)
 	if g.WorkTree == "" {
 		cmd.Dir = g.Dir
 	}
+
 	env := append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_ATTR_NOSYSTEM=1",
 	)
+
 	if g.Token != "" {
 		basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + g.Token))
 		env = append(env,
@@ -65,16 +70,21 @@ func (g *Git) Run(ctx context.Context, args ...string) (string, error) {
 			"GIT_CONFIG_VALUE_0=Authorization: Basic "+basic,
 		)
 	}
+
 	cmd.Env = append(env, g.Env...)
+
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if g.Token != "" {
 			msg = strings.ReplaceAll(msg, g.Token, "***")
 		}
+
 		return stdout.String(), fmt.Errorf("git %s: %w: %s", args[0], err, msg)
 	}
+
 	return stdout.String(), nil
 }
 
@@ -83,5 +93,6 @@ func Clone(ctx context.Context, url, branch, dir, token string) error {
 	g := &Git{Dir: ".", Token: token}
 	_, err := g.Run(ctx, "clone", "--depth=1", "--single-branch", "--branch", branch,
 		"--no-recurse-submodules", url, dir)
+
 	return err
 }

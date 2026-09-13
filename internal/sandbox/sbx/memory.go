@@ -14,10 +14,12 @@ import (
 // through free page reporting within a second. Measured: 2.3 GB down to 0.8 GB after 1 GB of I/O.
 func (s *Sandbox) TrimCache(ctx context.Context, interval time.Duration) error {
 	loop := fmt.Sprintf("while :; do sleep %d; sync; echo 1 > /proc/sys/vm/drop_caches; done", int(interval.Seconds()))
+
 	_, se, err := s.Exec(ctx, sandbox.ExecOptions{User: "root"}, "sh", "-c", "nohup sh -c '"+loop+"' </dev/null >/dev/null 2>&1 &")
 	if err != nil {
 		return fmt.Errorf("start cache trimmer: %w: %s", err, tail(se))
 	}
+
 	return nil
 }
 

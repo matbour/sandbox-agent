@@ -35,19 +35,25 @@ func serve(ctx context.Context, r *job.Runner, once bool) error {
 	} else if n > 0 {
 		d.log.Info("imported old job status files", "jobs", n)
 	}
+
 	d.initMentions(ctx)
+
 	if d.cfg.WebAddr != "" {
 		d.startHTTP(ctx)
 	}
+
 	d.log.Info("agentd started", "sandbox", r.Sandbox.Name(), "repo", d.cfg.Repo, "labels", d.cfg.Labels(),
 		"default_model", d.cfg.AgentModel, "teams", d.cfg.TeamKeys, "every", d.cfg.PollInterval)
+
 	for {
 		d.runLabelledIssues(ctx)
 		d.runSessions(ctx)
 		d.runMentions(ctx)
+
 		if once {
 			return nil
 		}
+
 		select {
 		case <-ctx.Done():
 			d.log.Info("stopping")
@@ -66,6 +72,7 @@ func (d *daemon) initMentions(ctx context.Context) {
 		d.log.Warn("cannot read the Linear identity; mentions disabled", "err", err)
 		return
 	}
+
 	d.meID, d.meName, d.mention = me.ID, me.Name, job.MentionPattern(me.Name)
 	d.log.Info("mentions enabled", "as", "@"+me.Name, "since", job.MentionWatermark(d.cfg.StateDir))
 }
@@ -86,10 +93,12 @@ func (d *daemon) runLabelledIssues(ctx context.Context) {
 	if err != nil {
 		d.log.Error("poll Linear", "err", err)
 	}
+
 	for _, is := range issues {
 		if ctx.Err() != nil {
 			return
 		}
+
 		d.log.Info("job starting; a stop request now waits for it to finish", "issue", is.Identifier)
 		d.r.Handle(context.WithoutCancel(ctx), is)
 	}
@@ -102,6 +111,7 @@ func (d *daemon) runSessions(ctx context.Context) {
 		if !ok {
 			return
 		}
+
 		d.log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
 		d.r.HandleSession(context.WithoutCancel(ctx), sess, d.cfg.OverviewURL, d.meID)
 	}
@@ -113,25 +123,31 @@ func (d *daemon) runMentions(ctx context.Context) {
 	if d.mention == nil || ctx.Err() != nil {
 		return
 	}
+
 	since := job.MentionWatermark(d.cfg.StateDir)
 	if recent := time.Now().Add(-6 * time.Hour); since.Before(recent) {
 		since = recent
 	}
+
 	words := strings.Fields(d.meName)
+
 	comments, err := d.r.Linear.CommentsSince(ctx, since, words[len(words)-1])
 	if err != nil {
 		d.log.Error("poll Linear comments", "err", err)
 	}
+
 	for _, c := range comments {
 		// A real mention also opens an agent session, handled above: give its webhook a minute to
 		// arrive before treating the comment as a plain-text mention.
 		if time.Since(c.CreatedAt) < time.Minute || job.MentionHandled(d.cfg.StateDir, c.ID) {
 			continue
 		}
+
 		if ctx.Err() != nil || c.Issue == nil || (c.Author != nil && c.Author.ID == d.meID) ||
 			!d.mentioned(c.Body) || !job.ClaimMention(d.cfg.StateDir, c.ID) {
 			continue
 		}
+
 		d.r.HandleMention(context.WithoutCancel(ctx), c)
 	}
 }
@@ -143,6 +159,7 @@ func (d *daemon) startHTTP(ctx context.Context) {
 		Labels: d.cfg.Labels, Mention: d.mentioned, Log: d.log, Trigger: d.poke,
 		AgentSession: func(ev web.AgentSessionEvent) { d.onAgentSession(ctx, ev) },
 	}
+
 	if d.cfg.AccessTeam != "" {
 		srv.Access = &web.Access{Team: d.cfg.AccessTeam, AUD: d.cfg.AccessAUD}
 	}
@@ -151,6 +168,7 @@ func (d *daemon) startHTTP(ctx context.Context) {
 			d.log.Error("http server", "err", err)
 		}
 	}()
+
 	d.log.Info("http server", "addr", d.cfg.WebAddr, "linear_webhook", d.cfg.LinearHookKey != "",
 		"access", d.cfg.AccessTeam != "")
 }
@@ -162,13 +180,17 @@ func (d *daemon) onAgentSession(ctx context.Context, ev web.AgentSessionEvent) {
 	if os.MkdirAll(dir, 0o700) == nil {
 		_ = os.WriteFile(filepath.Join(dir, ev.SessionID+"-"+ev.Action+".json"), ev.Raw, 0o600)
 	}
+
 	if ev.Signal == "stop" {
 		stopped := job.StopSession(ev.SessionID)
 		dropped := job.DropSessions(d.cfg.StateDir, ev.SessionID)
+
 		d.log.Info("agent session stopped", "session", ev.SessionID, "job_cancelled", stopped, "queued_dropped", dropped)
 		go d.activity(ctx, ev.SessionID, "response", "Stopped. Nothing was pushed.")
+
 		return
 	}
+
 	job.EnqueueSession(d.cfg.StateDir, job.Session{ID: ev.SessionID, Action: ev.Action,
 		IssueID: ev.IssueID, Issue: ev.Issue, CommentID: ev.CommentID, Request: ev.Request,
 		Requester: ev.Requester, RequesterID: ev.RequesterID, Received: time.Now().UTC()})
@@ -180,6 +202,7 @@ func (d *daemon) onAgentSession(ctx context.Context, ev web.AgentSessionEvent) {
 func (d *daemon) activity(ctx context.Context, session, kind, body string) {
 	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 8*time.Second)
 	defer cancel()
+
 	if err := d.r.Linear.AgentActivity(actx, session, kind, body); err != nil {
 		d.log.Warn("cannot post agent activity", "session", session, "kind", kind, "err", err)
 	}
@@ -188,10 +211,12 @@ func (d *daemon) activity(ctx context.Context, session, kind, body string) {
 // secretLines splits a secrets file holding one secret per line.
 func secretLines(s string) [][]byte {
 	var out [][]byte
+
 	for _, l := range strings.Split(s, "\n") {
 		if l = strings.TrimSpace(l); l != "" {
 			out = append(out, []byte(l))
 		}
 	}
+
 	return out
 }

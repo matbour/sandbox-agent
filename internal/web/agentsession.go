@@ -52,26 +52,33 @@ func parseAgentSession(body []byte) (AgentSessionEvent, error) {
 	if err := json.Unmarshal(body, &p); err != nil {
 		return AgentSessionEvent{}, err
 	}
+
 	if p.AgentSession.ID == "" || p.AgentSession.Issue == nil {
 		return AgentSessionEvent{}, errors.New("no session or issue")
 	}
+
 	ev := AgentSessionEvent{Action: p.Action, SessionID: p.AgentSession.ID, IssueID: p.AgentSession.Issue.ID,
 		Issue: p.AgentSession.Issue.Identifier, Raw: body}
 	if c := p.AgentSession.Comment; c != nil {
 		ev.CommentID, ev.Request = c.ID, c.Body
 	}
+
 	if cr := p.AgentSession.Creator; cr != nil {
 		ev.Requester, ev.RequesterID = cr.Name, cr.ID
 	}
+
 	if a := p.AgentActivity; p.Action == "prompted" && a != nil {
 		ev.Signal = a.Signal
+
 		ev.Request = a.Body
 		if ev.Request == "" {
 			ev.Request = a.Content.Body
 		}
+
 		if a.User != nil {
 			ev.Requester, ev.RequesterID = a.User.Name, a.User.ID
 		}
 	}
+
 	return ev, nil
 }

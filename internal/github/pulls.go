@@ -23,6 +23,7 @@ func (r *Repo) CreateDraftPR(ctx context.Context, head, base, title, body string
 	if err != nil {
 		return nil, fmt.Errorf("github: create pull request: %w", err)
 	}
+
 	return &PullRequest{Number: pr.GetNumber(), NodeID: pr.GetNodeID(), HTMLURL: pr.GetHTMLURL()}, nil
 }
 
@@ -44,10 +45,12 @@ func (r *Repo) GetPR(ctx context.Context, n int) (*PR, error) {
 	if err != nil {
 		return nil, fmt.Errorf("github: pull request #%d: %w", n, err)
 	}
+
 	out := &PR{Number: p.GetNumber(), NodeID: p.GetNodeID(), Draft: p.GetDraft(), State: p.GetState(),
 		Merged: p.GetMerged(), HTMLURL: p.GetHTMLURL()}
 	out.Head.Ref, out.Head.SHA = p.GetHead().GetRef(), p.GetHead().GetSHA()
 	out.Base.Ref = p.GetBase().GetRef()
+
 	return out, nil
 }
 
@@ -60,6 +63,7 @@ func (r *Repo) MarkReady(ctx context.Context, nodeID string) error {
 	if err != nil {
 		return err
 	}
+
 	var out struct {
 		Errors []struct {
 			Message string `json:"message"`
@@ -68,9 +72,11 @@ func (r *Repo) MarkReady(ctx context.Context, nodeID string) error {
 	if _, err := r.gh().Do(req, &out); err != nil {
 		return fmt.Errorf("github: mark ready: %w", err)
 	}
+
 	if len(out.Errors) > 0 {
 		return fmt.Errorf("github: mark ready: %s", out.Errors[0].Message)
 	}
+
 	return nil
 }
 
@@ -80,12 +86,16 @@ func PRNumber(url string) (int, bool) {
 	if i < 0 {
 		return 0, false
 	}
+
 	n := 0
+
 	for _, c := range url[i+len("/pull/"):] {
 		if c < '0' || c > '9' {
 			break
 		}
+
 		n = n*10 + int(c-'0')
 	}
+
 	return n, n > 0
 }

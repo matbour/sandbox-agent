@@ -61,6 +61,7 @@ func LoadPartial(secretsDir string) (*Config, error) { return load(secretsDir, f
 
 func load(secretsDir string, full bool) (*Config, error) {
 	vals := map[string]string{}
+
 	if _, err := os.Stat(secretsDir); err == nil {
 		if err := CheckPrivate(secretsDir); err != nil {
 			return nil, err
@@ -68,57 +69,73 @@ func load(secretsDir string, full bool) (*Config, error) {
 	} else if full {
 		return nil, fmt.Errorf("secrets directory: %w", err)
 	}
+
 	if path := filepath.Join(secretsDir, ConfigFile); fileExists(path) {
 		if err := CheckPrivate(path); err != nil {
 			return nil, err
 		}
+
 		f, err := os.Open(path)
 		if err != nil {
 			return nil, err
 		}
+
 		defer func() { _ = f.Close() }() // read only
+
 		sc := bufio.NewScanner(f)
 		for n := 1; sc.Scan(); n++ {
 			line := strings.TrimSpace(sc.Text())
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
+
 			k, v, ok := strings.Cut(line, "=")
 			if !ok {
 				return nil, fmt.Errorf("%s:%d: expected KEY=VALUE", path, n)
 			}
+
 			vals[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
 		}
+
 		if err := sc.Err(); err != nil {
 			return nil, err
 		}
 	}
+
 	get := func(k, def string) string {
 		if v, ok := os.LookupEnv(k); ok {
 			return v
 		}
+
 		if v, ok := vals[k]; ok && v != "" {
 			return v
 		}
+
 		return def
 	}
+
 	linearID, err := readSecret(secretsDir, LinearIDFile)
 	if err != nil {
 		return nil, err
 	}
+
 	linearSecret, err := readSecret(secretsDir, LinearSecFile)
 	if err != nil {
 		return nil, err
 	}
+
 	linearHook, err := readSecret(secretsDir, LinearHookFile)
 	if err != nil {
 		return nil, err
 	}
+
 	setupDefault := ""
 	if p := filepath.Join(secretsDir, SetupFile); fileExists(p) {
 		setupDefault = p
 	}
+
 	home, _ := os.UserHomeDir()
+
 	c := &Config{
 		LinearClientID: linearID,
 		LinearSecret:   linearSecret,
@@ -151,12 +168,15 @@ func load(secretsDir string, full bool) (*Config, error) {
 	if c.PollInterval, err = time.ParseDuration(get("POLL_INTERVAL", "30s")); err != nil {
 		return nil, fmt.Errorf("POLL_INTERVAL: %w", err)
 	}
+
 	if c.AgentTimeout, err = time.ParseDuration(get("AGENT_TIMEOUT", "45m")); err != nil {
 		return nil, fmt.Errorf("AGENT_TIMEOUT: %w", err)
 	}
+
 	if c.CIWait, err = time.ParseDuration(get("CI_TIMEOUT", "25m")); err != nil {
 		return nil, fmt.Errorf("CI_TIMEOUT: %w", err)
 	}
+
 	for k, dst := range map[string]*int{
 		"SANDBOX_CPUS": &c.SandboxCPUs, "AGENT_MAX_TURNS": &c.AgentMaxTurns,
 		"MAX_FILES": &c.MaxFiles, "MAX_PATCH_BYTES": &c.MaxPatchBytes, "CI_FIX_ATTEMPTS": &c.CIFixAttempts,
@@ -167,19 +187,25 @@ func load(secretsDir string, full bool) (*Config, error) {
 			return nil, fmt.Errorf("%s: %w", k, err)
 		}
 	}
+
 	if c.ModelLabels, err = parseModelLabels(get("MODEL_LABELS", DefaultModelLabels)); err != nil {
 		return nil, fmt.Errorf("MODEL_LABELS: %w", err)
 	}
+
 	if (c.AccessTeam == "") != (c.AccessAUD == "") {
 		return nil, fmt.Errorf("set both ACCESS_TEAM and ACCESS_AUD, or neither")
 	}
+
 	if (c.AuthorName == "") != (c.AuthorEmail == "") {
 		return nil, fmt.Errorf("set both COMMIT_AUTHOR_NAME and COMMIT_AUTHOR_EMAIL, or neither")
 	}
+
 	if !full {
 		return c, nil
 	}
+
 	var missing []string
+
 	for k, v := range map[string]string{
 		"GITHUB_APP_ID":          c.GitHubAppID,
 		"GITHUB_INSTALLATION_ID": c.GitHubInstall, "GITHUB_REPO": c.Repo,
@@ -188,32 +214,39 @@ func load(secretsDir string, full bool) (*Config, error) {
 			missing = append(missing, k)
 		}
 	}
+
 	for name, v := range map[string]string{LinearIDFile: c.LinearClientID, LinearSecFile: c.LinearSecret} {
 		if v == "" {
 			missing = append(missing, name)
 		}
 	}
+
 	if st, err := os.Stat(c.GitHubKeyPath); err != nil || st.Size() == 0 {
 		missing = append(missing, c.GitHubKeyPath+" (missing or empty)")
 	} else if err := CheckPrivate(c.GitHubKeyPath); err != nil {
 		return nil, err
 	}
+
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		return nil, fmt.Errorf("missing settings:\n  %s", strings.Join(missing, "\n  "))
 	}
+
 	if !strings.Contains(c.Repo, "/") {
 		return nil, fmt.Errorf("GITHUB_REPO must be owner/name")
 	}
+
 	return c, nil
 }
 
 func list(s string) []string {
 	var out []string
+
 	for _, p := range strings.Split(s, ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			out = append(out, p)
 		}
 	}
+
 	return out
 }

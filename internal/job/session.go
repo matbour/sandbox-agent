@@ -15,6 +15,7 @@ func StopSession(id string) bool {
 		c.(context.CancelFunc)()
 		return true
 	}
+
 	return false
 }
 
@@ -24,31 +25,38 @@ func StopSession(id string) bool {
 // notes. Progress shows in the session.
 func (r *Runner) HandleSession(ctx context.Context, s Session, overview, appUserID string) {
 	ctx, cancel := context.WithCancel(ctx)
+
 	running.Store(s.ID, cancel)
 	defer func() {
 		running.Delete(s.ID)
 		cancel()
 	}()
+
 	rep := sessionReporter{lc: r.Linear, log: r.Log, Session: s.ID}
 	if overview != "" {
 		_ = r.Linear.AgentSessionLink(ctx, s.ID, "sandbox-agent jobs", overview)
 	}
+
 	is, err := r.Linear.IssueByID(ctx, s.IssueID)
 	if err != nil {
 		rep.Fail(ctx, "cannot read the issue: "+err.Error())
 		return
 	}
+
 	requester := s.Requester
 	if requester == "" {
 		requester = "someone"
 	}
+
 	if r.UpdatePR(ctx, *is, requester, s.Request, s.ID, rep, s.RequesterID) {
 		return
 	}
+
 	if is.Delegate == nil || is.Delegate.ID != appUserID {
 		r.Research(ctx, *is, requester, s.Request, rep)
 		return
 	}
+
 	model := r.requestModel(s.Request, "")
 	if out := r.NewPR(ctx, *is, model, rep, false, s.RequesterID); out != nil && out.PR != nil {
 		_ = r.Linear.AgentSessionLink(ctx, s.ID, "Pull request", out.PR.HTMLURL)

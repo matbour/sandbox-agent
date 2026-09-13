@@ -17,6 +17,7 @@ func New(o sandbox.Options) (sandbox.Provider, error) {
 	if o.CPUSet == "" {
 		return nil, fmt.Errorf("sbx: a CPU set is required (CPUS)")
 	}
+
 	return &Provider{CPUSet: o.CPUSet}, nil
 }
 
@@ -32,7 +33,9 @@ func (p *Provider) Start(ctx context.Context, sp sandbox.Spec) (sandbox.Sandbox,
 	if err != nil {
 		return nil, err
 	}
+
 	sb.cpus = p.CPUSet
+
 	return sb, nil
 }
 

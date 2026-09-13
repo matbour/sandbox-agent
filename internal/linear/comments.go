@@ -23,15 +23,19 @@ func (c *Client) CommentsSince(ctx context.Context, since time.Time, text string
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Comment, 0, len(r.Comments.Nodes))
 	for i := range r.Comments.Nodes {
 		n := &r.Comments.Nodes[i]
+
 		cm := commentFrom(&n.CommentFields)
 		if n.Issue != nil {
 			is := issueFrom(&n.Issue.IssueFields)
 			cm.Issue = &is
 		}
+
 		out = append(out, cm)
 	}
+
 	return out, nil
 }

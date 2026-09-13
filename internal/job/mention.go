@@ -15,6 +15,7 @@ func MentionPattern(name string) *regexp.Regexp {
 	for i, w := range words {
 		words[i] = regexp.QuoteMeta(w)
 	}
+
 	return regexp.MustCompile(`(?i)@\s*` + strings.Join(words, `[\s_-]*`) + `\b`)
 }
 
@@ -22,10 +23,12 @@ func MentionPattern(name string) *regexp.Regexp {
 func (r *Runner) HandleMention(ctx context.Context, c linear.Comment) {
 	requester := c.AuthorName()
 	rep := commentReporter{lc: r.Linear, log: r.Log, Issue: c.Issue.ID, Parent: c.ID}
+
 	owner := ""
 	if c.Author != nil {
 		owner = c.Author.ID
 	}
+
 	if !r.UpdatePR(ctx, *c.Issue, requester, c.Body, c.ID, rep, owner) {
 		r.Research(ctx, *c.Issue, requester, c.Body, rep)
 	}

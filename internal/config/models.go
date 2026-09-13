@@ -17,14 +17,18 @@ const DefaultModelLabels = "agent-haiku=claude-haiku-5-5,agent-sonnet=claude-son
 
 func parseModelLabels(s string) ([]ModelLabel, error) {
 	var out []ModelLabel
+
 	for _, item := range list(s) {
 		label, model, ok := strings.Cut(item, "=")
+
 		label, model = strings.TrimSpace(label), strings.TrimSpace(model)
 		if !ok || label == "" || model == "" {
 			return nil, fmt.Errorf("expected label=model, got %q", item)
 		}
+
 		out = append(out, ModelLabel{Label: label, Model: model})
 	}
+
 	return out, nil
 }
 
@@ -34,6 +38,7 @@ func (c *Config) Labels() []string {
 	for _, m := range c.ModelLabels {
 		labels = append(labels, m.Label)
 	}
+
 	return labels
 }
 
@@ -41,19 +46,23 @@ func (c *Config) Labels() []string {
 // else AgentModel. ok is false if no trigger label is present.
 func (c *Config) ModelFor(labels []string) (model string, ok bool) {
 	best := -1
+
 	for _, l := range labels {
 		if strings.EqualFold(l, c.TriggerLabel) {
 			ok = true
 		}
+
 		for i, m := range c.ModelLabels {
 			if strings.EqualFold(l, m.Label) && i > best {
 				best, ok = i, true
 			}
 		}
 	}
+
 	if best >= 0 {
 		return c.ModelLabels[best].Model, true
 	}
+
 	return c.AgentModel, ok
 }
 
@@ -64,5 +73,6 @@ func (c *Config) IsTrigger(label string) bool {
 			return true
 		}
 	}
+
 	return false
 }

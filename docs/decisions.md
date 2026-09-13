@@ -378,3 +378,12 @@ runs it twice: `commit-msg` on the message being written, and `pre-push` on ever
 be pushed, which also catches messages made with `--no-verify` or by a rebase. `fixup!` and
 `squash!` commits pass locally and are refused on push. Hooks only run where `make hooks` was run;
 CI does not check messages.
+
+## D37. Blank lines between blocks, enforced by wsl (2026-11-15)
+
+Dense Go code was hard to read. `.golangci.yml` enables `wsl_v5`, golangci-lint's whitespace
+linter: a blank line around blocks (`if`, `for`, `switch`, `defer`, `go`), before a `return` that
+follows other statements, and between statements that do not belong together, with its default
+settings. It is auto-fixable, so the rule costs nothing to follow: `make fmt` applies it, and the
+pre-commit hook and CI refuse code that breaks it. Applied to the whole code base on 2026-11-15
+(921 lines added, generated code excluded).

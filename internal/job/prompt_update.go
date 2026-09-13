@@ -52,40 +52,52 @@ func UpdatePrompt(is linear.Issue, requester, request string, pr *github.PR, fee
 			"  in: " + strings.Join(conflicts, ", ") + ". Resolve every one first, keeping the intent of both\n" +
 			"  sides, then run the tests. Unresolved markers make the update fail.\n"
 	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, updateInstructions, pr.Base.Ref, conflictNote)
+
 	if notes = strings.TrimSpace(notes); notes != "" {
 		b.WriteString("\nRepository notes from the operator:\n" + notes + "\n")
 	}
+
 	b.WriteString("\n<request>\n")
 	fmt.Fprintf(&b, "From %s, on the Linear issue:\n%s\n", defang(requester), defang(strings.TrimSpace(request)))
 	b.WriteString("</request>\n\n<issue>\n")
 	fmt.Fprintf(&b, "Identifier: %s\nTitle: %s\n\nDescription:\n%s\n", is.Identifier, defang(is.Title), orNone(defang(is.Description)))
 	b.WriteString("</issue>\n")
+
 	if len(feedback) > 0 {
 		b.WriteString("\n<pull-request-feedback>\n")
+
 		size := 0
 		for i := len(feedback) - 1; i >= 0 && size < 15000; i-- { // newest first, bounded
 			f := feedback[i]
+
 			where := ""
 			if f.Path != "" {
 				where = fmt.Sprintf(" on %s:%d", f.Path, f.Line)
 			}
+
 			entry := fmt.Sprintf("- %s (%s%s): %s\n", defang(f.Author), f.Kind, where, defang(truncate(strings.TrimSpace(f.Body), 3000)))
 			size += len(entry)
 			b.WriteString(entry)
 		}
+
 		b.WriteString("</pull-request-feedback>\n")
 	}
+
 	var failed []string
+
 	for _, c := range checks {
 		if c.Conclusion == "failure" || c.Conclusion == "error" || c.Conclusion == "timed_out" {
 			failed = append(failed, fmt.Sprintf("- %s: %s", c.Name, truncate(strings.Join(strings.Fields(c.Summary), " "), 500)))
 		}
 	}
+
 	if len(failed) > 0 {
 		b.WriteString("\n<failed-checks>\n" + defang(strings.Join(failed, "\n")) + "\n</failed-checks>\n")
 		b.WriteString("Check logs are not available here: reproduce failures locally (build, type-check, tests).\n")
 	}
+
 	return b.String()
 }

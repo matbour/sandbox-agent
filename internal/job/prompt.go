@@ -44,21 +44,27 @@ reviewer should check>
 func Prompt(is linear.Issue, extra string) string {
 	var b strings.Builder
 	b.WriteString(instructions)
+
 	if extra = strings.TrimSpace(extra); extra != "" {
 		b.WriteString("\nRepository notes from the operator:\n")
 		b.WriteString(extra)
 		b.WriteString("\n")
 	}
+
 	b.WriteString("\n<issue>\n")
 	fmt.Fprintf(&b, "Identifier: %s\nTitle: %s\n\nDescription:\n%s\n",
 		is.Identifier, defang(is.Title), orNone(defang(is.Description)))
+
 	if len(is.Comments) > 0 {
 		b.WriteString("\nComments:\n")
+
 		for _, c := range is.Comments {
 			fmt.Fprintf(&b, "- %s: %s\n", defang(c.AuthorName()), defang(strings.TrimSpace(c.Body)))
 		}
 	}
+
 	b.WriteString("</issue>\n")
+
 	return b.String()
 }
 
@@ -69,19 +75,24 @@ func ParseSummary(result, fallbackTitle string) (title, body string) {
 		if t, ok := strings.CutPrefix(strings.TrimSpace(l), "TITLE:"); ok {
 			title = strings.TrimSpace(t)
 			body = strings.TrimSpace(strings.Join(lines[i+1:], "\n"))
+
 			break
 		}
 	}
+
 	if title == "" {
 		title, body = fallbackTitle, strings.TrimSpace(result)
 	}
+
 	title = strings.Join(strings.Fields(title), " ")
 	if r := []rune(title); len(r) > 100 {
 		title = string(r[:100])
 	}
+
 	if len(body) > 20000 {
 		body = body[:20000] + "\n\n…(truncated)"
 	}
+
 	return title, body
 }
 
@@ -89,6 +100,7 @@ func orNone(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return "(none)"
 	}
+
 	return s
 }
 
@@ -103,5 +115,6 @@ var blockTags = func() *strings.Replacer {
 	for _, t := range []string{"issue", "request", "pull-request-feedback", "failed-checks", "research"} {
 		pairs = append(pairs, "<"+t+">", "<"+t+" >", "</"+t+">", "</"+t+" >")
 	}
+
 	return strings.NewReplacer(pairs...)
 }()

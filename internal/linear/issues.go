@@ -13,6 +13,7 @@ func (c *Client) IssuesWithLabel(ctx context.Context, labels []string, teams []s
 		anyOf = append(anyOf, map[string]any{
 			"labels": map[string]any{"some": map[string]any{"name": map[string]any{"eqIgnoreCase": l}}}})
 	}
+
 	filter := map[string]any{
 		"or":    anyOf,
 		"state": map[string]any{"type": map[string]any{"nin": []string{"completed", "canceled"}}},
@@ -20,14 +21,17 @@ func (c *Client) IssuesWithLabel(ctx context.Context, labels []string, teams []s
 	if len(teams) > 0 {
 		filter["team"] = map[string]any{"key": map[string]any{"in": teams}}
 	}
+
 	r, err := IssuesWithLabel(ctx, c.client(), &filter)
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]Issue, 0, len(r.Issues.Nodes))
 	for i := range r.Issues.Nodes {
 		out = append(out, issueFrom(&r.Issues.Nodes[i].IssueFields))
 	}
+
 	return out, nil
 }
 
@@ -37,7 +41,9 @@ func (c *Client) IssueByID(ctx context.Context, id string) (*Issue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("linear: issue %s: %w", id, err)
 	}
+
 	is := issueFrom(&r.Issue.IssueFields)
+
 	return &is, nil
 }
 
@@ -46,7 +52,9 @@ func (c *Client) SetLabels(ctx context.Context, issueID string, labelIDs []strin
 	if labelIDs == nil {
 		labelIDs = []string{}
 	}
+
 	_, err := SetLabels(ctx, c.client(), issueID, labelIDs)
+
 	return err
 }
 

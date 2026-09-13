@@ -28,10 +28,12 @@ func EnqueueSession(root string, s Session) {
 				return nil
 			}
 		}
+
 		sf.Sessions = append(sf.Sessions, s)
 		if s.CommentID != "" {
 			sf.Mentions.Handled = append(sf.Mentions.Handled, s.CommentID)
 		}
+
 		return nil
 	})
 }
@@ -40,23 +42,28 @@ func EnqueueSession(root string, s Session) {
 // visible in the overview and safe across restarts.
 func TakeSession(root string) (Session, bool) {
 	var out Session
+
 	ok := false
 	_ = withState(root, true, func(sf *stateFile) error {
 		if len(sf.Sessions) > 0 {
 			out, sf.Sessions, ok = sf.Sessions[0], sf.Sessions[1:], true
 		}
+
 		return nil
 	})
+
 	return out, ok
 }
 
 // TakeSessions removes and returns the waiting sessions, oldest first.
 func TakeSessions(root string) []Session {
 	var out []Session
+
 	_ = withState(root, true, func(sf *stateFile) error {
 		out, sf.Sessions = sf.Sessions, nil
 		return nil
 	})
+
 	return out
 }
 
@@ -70,11 +77,15 @@ func DropSessions(root, id string) int {
 				n++
 				continue
 			}
+
 			keep = append(keep, s)
 		}
+
 		sf.Sessions = keep
+
 		return nil
 	})
+
 	return n
 }
 
@@ -82,13 +93,17 @@ func DropSessions(root, id string) int {
 // first time.
 func MentionWatermark(root string) time.Time {
 	var t time.Time
+
 	_ = withState(root, true, func(sf *stateFile) error {
 		if sf.Mentions.Since.IsZero() {
 			sf.Mentions.Since = time.Now().UTC()
 		}
+
 		t = sf.Mentions.Since
+
 		return nil
 	})
+
 	return t
 }
 
@@ -101,13 +116,17 @@ func ClaimMention(root, id string) bool {
 				return nil
 			}
 		}
+
 		sf.Mentions.Handled = append(sf.Mentions.Handled, id)
 		if n := len(sf.Mentions.Handled); n > 1000 {
 			sf.Mentions.Handled = sf.Mentions.Handled[n-1000:]
 		}
+
 		claimed = true
+
 		return nil
 	})
+
 	return claimed
 }
 
@@ -120,18 +139,22 @@ func MentionHandled(root, id string) bool {
 				found = true
 			}
 		}
+
 		return nil
 	})
+
 	return found
 }
 
 // Queued returns the agent sessions waiting for the worker, oldest first.
 func Queued(root string) []Session {
 	var out []Session
+
 	_ = withState(root, false, func(sf *stateFile) error {
 		out = append(out, sf.Sessions...)
 		return nil
 	})
+
 	return out
 }
 
@@ -140,5 +163,6 @@ func (s Session) Kind() string {
 	if strings.HasPrefix(s.Request, "This thread is for an agent session") {
 		return "delegated"
 	}
+
 	return "mentioned"
 }

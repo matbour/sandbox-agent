@@ -7,14 +7,17 @@ import (
 
 func TestParseRaw(t *testing.T) {
 	raw := ":100644 100644 aaaa bbbb M\x00src/a.ts\x00:000000 120000 0000 cccc A\x00link\x00"
+
 	got, err := ParseRaw(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(got) != 2 || got[0].Path != "src/a.ts" || got[0].Status != 'M' ||
 		got[1].NewMode != "120000" || got[1].Status != 'A' {
 		t.Fatalf("got %+v", got)
 	}
+
 	if _, err := ParseRaw("garbage\x00"); err == nil {
 		t.Fatal("expected error")
 	}
@@ -22,6 +25,7 @@ func TestParseRaw(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	ok := Change{Status: 'M', Path: "src/app.ts", OldMode: "100644", NewMode: "100644"}
+
 	cases := []struct {
 		name   string
 		c      Change
@@ -54,12 +58,15 @@ func TestValidate(t *testing.T) {
 
 func TestLimits(t *testing.T) {
 	c := Change{Status: 'M', Path: "a", OldMode: "100644", NewMode: "100644"}
+
 	if r := Validate(nil, 0, Limits{}); r.OK() {
 		t.Fatal("empty change set accepted")
 	}
+
 	if r := Validate([]Change{c, c, c}, 10, Limits{MaxFiles: 2}); r.OK() {
 		t.Fatal("too many files accepted")
 	}
+
 	if r := Validate([]Change{c}, 5000, Limits{MaxBytes: 1000}); r.OK() {
 		t.Fatal("oversized patch accepted")
 	}
@@ -67,12 +74,15 @@ func TestLimits(t *testing.T) {
 
 func check(t *testing.T, kind string, got []string, want string) {
 	t.Helper()
+
 	if want == "" {
 		if len(got) != 0 {
 			t.Fatalf("unexpected %s: %v", kind, got)
 		}
+
 		return
 	}
+
 	if len(got) == 0 || !strings.Contains(strings.Join(got, "|"), want) {
 		t.Fatalf("expected %s containing %q, got %v", kind, want, got)
 	}
@@ -80,6 +90,7 @@ func check(t *testing.T, kind string, got []string, want string) {
 
 func TestDenyPaths(t *testing.T) {
 	l := Limits{DenyPaths: []string{"contracts/", "bun.lock"}}
+
 	for p, want := range map[string]bool{
 		"contracts/token-v1/src/A.sol": false, "bun.lock": false, "apps/bun.lock": true,
 		"contractsx/a.ts": true, "apps/web/a.ts": true,

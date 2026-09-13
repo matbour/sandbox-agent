@@ -30,6 +30,7 @@ func (r *Runner) authorEnv() []string {
 	if r.Cfg.AuthorEmail == "" {
 		return nil
 	}
+
 	return []string{
 		"GIT_AUTHOR_NAME=" + r.Cfg.AuthorName, "GIT_AUTHOR_EMAIL=" + r.Cfg.AuthorEmail,
 		"GIT_COMMITTER_NAME=" + r.Cfg.AuthorName, "GIT_COMMITTER_EMAIL=" + r.Cfg.AuthorEmail,
@@ -41,6 +42,7 @@ func modelLabelList(cfg *config.Config) string {
 	for _, m := range cfg.ModelLabels {
 		parts = append(parts, fmt.Sprintf("`%s`", m.Label))
 	}
+
 	return strings.Join(parts, ", ")
 }
 
@@ -51,6 +53,7 @@ func (r *Runner) requestModel(request, fallback string) string {
 	for _, w := range strings.Fields(request) {
 		words = append(words, strings.Trim(w, "`.,;:!?()[]"))
 	}
+
 	for _, w := range words {
 		for _, m := range r.Cfg.ModelLabels {
 			if strings.EqualFold(w, m.Label) {
@@ -59,8 +62,10 @@ func (r *Runner) requestModel(request, fallback string) string {
 			}
 		}
 	}
+
 	if fallback != "" {
 		return fallback
 	}
+
 	return r.Cfg.AgentModel
 }

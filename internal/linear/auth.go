@@ -34,6 +34,7 @@ const tokenEndpoint = "https://api.linear.app/oauth/token"
 func (c *Client) auth(ctx context.Context, fresh bool) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.token == nil && !fresh && c.TokenPath != "" {
 		if b, err := os.ReadFile(c.TokenPath); err == nil {
 			var t appToken
@@ -48,12 +49,14 @@ func (c *Client) auth(ctx context.Context, fresh bool) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		c.token = t
 		if c.TokenPath != "" {
 			b, _ := json.Marshal(t)
 			_ = os.WriteFile(c.TokenPath, b, 0o600)
 		}
 	}
+
 	return "Bearer " + c.token.Value, nil
 }
 
@@ -64,21 +67,28 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 		"client_secret": {c.ClientSecret},
 		"scope":         {AppScopes},
 	}
+
 	url := tokenEndpoint
 	if c.tokenURL != "" {
 		url = c.tokenURL
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() { _ = resp.Body.Close() }()
+
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+
 	var out struct {
 		AccessToken string `json:"access_token"`
 		ExpiresIn   int64  `json:"expires_in"`
@@ -86,9 +96,11 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 	if resp.StatusCode != http.StatusOK || json.Unmarshal(raw, &out) != nil || out.AccessToken == "" {
 		return nil, fmt.Errorf("linear: client credentials token: HTTP %d: %s", resp.StatusCode, truncate(string(raw), 300))
 	}
+
 	if out.ExpiresIn <= 0 {
 		out.ExpiresIn = 30 * 24 * 3600
 	}
+
 	return &appToken{Value: out.AccessToken, Scopes: AppScopes,
 		Expires: time.Now().Add(time.Duration(out.ExpiresIn) * time.Second)}, nil
 }

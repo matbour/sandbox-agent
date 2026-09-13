@@ -16,8 +16,10 @@ func CloneForUpdate(ctx context.Context, url, head, base, dir, token string) err
 		"--no-recurse-submodules", url, dir); err != nil {
 		return err
 	}
+
 	g.Dir = dir
 	_, err := g.Run(ctx, "fetch", "--filter=blob:none", "origin", "+refs/heads/"+base+":refs/remotes/origin/"+base)
+
 	return err
 }
 
@@ -29,10 +31,12 @@ func MergeBase(ctx context.Context, g *Git, base string) (merged bool, conflicts
 	if _, err := g.Run(ctx, "merge-base", "--is-ancestor", ref, "HEAD"); err == nil {
 		return false, nil, nil
 	}
+
 	head, err := g.Run(ctx, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return false, nil, err
 	}
+
 	msg := fmt.Sprintf("Merge %s into %s", base, strings.TrimSpace(head))
 	if _, mErr := g.Run(ctx, "merge", "--no-ff", "--no-verify", "-m", msg, ref); mErr == nil {
 		return true, nil, nil
@@ -41,32 +45,39 @@ func MergeBase(ctx context.Context, g *Git, base string) (merged bool, conflicts
 		if err != nil {
 			return false, nil, err
 		}
+
 		for _, f := range strings.Split(out, "\x00") {
 			if f != "" {
 				conflicts = append(conflicts, f)
 			}
 		}
+
 		if len(conflicts) == 0 {
 			return false, nil, mErr
 		}
 	}
+
 	if _, err := g.Run(ctx, "add", "--all"); err != nil {
 		return false, nil, err
 	}
+
 	if _, err := g.Run(ctx, "commit", "--no-verify", "-q", "-m", msg+" (with conflicts)"); err != nil {
 		return false, nil, err
 	}
+
 	return true, conflicts, nil
 }
 
 // CheckNoMarkers fails if any of files (relative to dir) still has conflict markers.
 func CheckNoMarkers(dir string, files []string) error {
 	var bad []string
+
 	for _, f := range files {
 		b, err := os.ReadFile(filepath.Join(dir, f))
 		if err != nil {
 			continue // deleted while resolving
 		}
+
 		for _, line := range strings.Split(string(b), "\n") {
 			if strings.HasPrefix(line, "<<<<<<< ") || strings.HasPrefix(line, ">>>>>>> ") {
 				bad = append(bad, f)
@@ -74,8 +85,10 @@ func CheckNoMarkers(dir string, files []string) error {
 			}
 		}
 	}
+
 	if len(bad) > 0 {
 		return fmt.Errorf("unresolved merge conflicts in: %s", strings.Join(bad, ", "))
 	}
+
 	return nil
 }

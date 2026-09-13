@@ -19,16 +19,20 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
 		http.Error(w, "too large", http.StatusRequestEntityTooLarge)
 		return
 	}
+
 	if !s.signed(body, r.Header.Get("Linear-Signature")) {
 		s.Log.Warn("linear webhook: bad signature", "remote", r.Header.Get("Cf-Connecting-Ip"))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+
 		return
 	}
+
 	var p struct {
 		Action    string          `json:"action"`
 		Type      string          `json:"type"`
@@ -39,19 +43,24 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad payload", http.StatusBadRequest)
 		return
 	}
+
 	if p.Timestamp == 0 { // not every payload type carries it; the header always does
 		p.Timestamp, _ = strconv.ParseInt(r.Header.Get("Linear-Timestamp"), 10, 64)
 	}
+
 	now := s.clock()
 	if d := now.Sub(time.UnixMilli(p.Timestamp)); d > time.Minute || d < -time.Minute {
 		s.Log.Warn("linear webhook: stale timestamp", "age", d)
 		http.Error(w, "stale", http.StatusUnauthorized)
+
 		return
 	}
+
 	if s.duplicate(r.Header.Get("Linear-Delivery"), now) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
 	switch {
 	case p.Type == "AgentSessionEvent" && s.AgentSession != nil:
 		ev, err := parseAgentSession(body)
@@ -59,6 +68,7 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warn("linear webhook: bad agent session event", "err", err)
 			break
 		}
+
 		s.Log.Info("linear webhook: agent session", "action", ev.Action, "session", ev.SessionID, "issue", ev.Issue)
 		s.AgentSession(ev)
 	case p.Type == "Issue" && p.Action != "remove" && s.mentionsLabel(p.Data) && s.Trigger != nil:
@@ -73,6 +83,7 @@ func (s *Server) linearWebhook(w http.ResponseWriter, r *http.Request) {
 			s.Trigger()
 		}
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -82,6 +93,7 @@ func (s *Server) signed(body []byte, header string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -90,8 +102,10 @@ func validSignature(secret, body []byte, header string) bool {
 	if err != nil || len(got) != sha256.Size {
 		return false
 	}
+
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(body)
+
 	return hmac.Equal(got, mac.Sum(nil))
 }
 
@@ -106,6 +120,7 @@ func (s *Server) mentionsLabel(data json.RawMessage) bool {
 	if json.Unmarshal(data, &d) != nil || d.Labels == nil || s.Labels == nil {
 		return true
 	}
+
 	for _, l := range d.Labels {
 		for _, t := range s.Labels() {
 			if strings.EqualFold(l.Name, t) {
@@ -113,6 +128,7 @@ func (s *Server) mentionsLabel(data json.RawMessage) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -121,19 +137,25 @@ func (s *Server) duplicate(id string, now time.Time) bool {
 	if id == "" {
 		return false
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.seen == nil {
 		s.seen = map[string]time.Time{}
 	}
+
 	for k, t := range s.seen {
 		if now.Sub(t) > 24*time.Hour {
 			delete(s.seen, k)
 		}
 	}
+
 	if _, ok := s.seen[id]; ok {
 		return true
 	}
+
 	s.seen[id] = now
+
 	return false
 }

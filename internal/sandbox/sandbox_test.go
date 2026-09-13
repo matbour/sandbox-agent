@@ -17,6 +17,7 @@ func TestRegistry(t *testing.T) {
 	if p, err := r.New("fake", Options{}); err != nil || p.Name() != "fake" {
 		t.Fatal(p, err)
 	}
+
 	if _, err := r.New("nope", Options{}); err == nil || !strings.Contains(err.Error(), "known: fake") {
 		t.Fatal(err)
 	}

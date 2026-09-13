@@ -11,6 +11,7 @@ import (
 
 func newServer(t *testing.T) (*Server, *int) {
 	triggers := 0
+
 	return &Server{
 		StateDir: t.TempDir(), LinearWebhookSecrets: [][]byte{[]byte("other"), []byte("s3cret")},
 		Labels:  func() []string { return []string{"agent", "agent-opus"} },
@@ -29,5 +30,6 @@ func TestLoopbackOnly(t *testing.T) {
 func (r rewrite) RoundTrip(req *http.Request) (*http.Response, error) {
 	u := r.base + req.URL.Path
 	out, _ := http.NewRequestWithContext(req.Context(), req.Method, u, req.Body)
+
 	return http.DefaultTransport.RoundTrip(out)
 }

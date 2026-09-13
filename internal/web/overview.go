@@ -25,7 +25,9 @@ func (s *Server) views() ([]jobView, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	now := time.Now()
+
 	out := make([]jobView, 0, len(jobs))
 	for _, j := range jobs {
 		v := jobView{State: j, Short: strings.TrimPrefix(j.Model, "claude-"), Time: j.Elapsed(now).String(),
@@ -33,6 +35,7 @@ func (s *Server) views() ([]jobView, error) {
 		if j.CostUSD > 0 {
 			v.Cost = fmt.Sprintf("$%.2f", j.CostUSD)
 		}
+
 		switch j.Stage {
 		case job.StageFailed:
 			v.Detail = strings.Join(strings.Fields(j.Error), " ")
@@ -42,8 +45,10 @@ func (s *Server) views() ([]jobView, error) {
 		case job.StageInterrupted:
 			v.Detail = "agentd stopped during the job"
 		}
+
 		out = append(out, v)
 	}
+
 	return out, nil
 }
 
@@ -53,6 +58,7 @@ func (s *Server) apiJobs(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "cannot read jobs", http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"jobs": jobs})
 }
@@ -63,23 +69,33 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot read jobs", http.StatusInternalServerError)
 		return
 	}
-	var running int
-	var cost float64
+
+	var (
+		running int
+		cost    float64
+	)
+
 	for _, j := range jobs {
 		if j.Running {
 			running++
 		}
+
 		cost += j.CostUSD
 	}
+
 	type queued struct{ Issue, Kind, Since, Request string }
+
 	var q []queued
+
 	for _, s := range job.Queued(s.StateDir) {
 		req := strings.Join(strings.Fields(s.Request), " ")
 		if r := []rune(req); len(r) > 120 {
 			req = string(r[:119]) + "…"
 		}
+
 		q = append(q, queued{s.Issue, s.Kind(), s.Received.Local().Format("15:04"), req})
 	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = page.Execute(w, map[string]any{
 		"Queue": q,

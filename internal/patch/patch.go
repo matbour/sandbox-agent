@@ -39,24 +39,29 @@ func (r Result) OK() bool { return len(r.Rejections) == 0 }
 // ParseRaw parses `git diff --raw -z --no-renames` output.
 func ParseRaw(out string) ([]Change, error) {
 	var changes []Change
+
 	fields := strings.Split(out, "\x00")
 	for i := 0; i < len(fields); i++ {
 		head := fields[i]
 		if head == "" {
 			continue
 		}
+
 		if !strings.HasPrefix(head, ":") || i+1 >= len(fields) {
 			return nil, fmt.Errorf("unexpected raw diff entry %q", head)
 		}
+
 		parts := strings.Fields(head[1:])
 		if len(parts) != 5 || len(parts[4]) == 0 {
 			return nil, fmt.Errorf("unexpected raw diff header %q", head)
 		}
+
 		i++
 		changes = append(changes, Change{
 			OldMode: parts[0], NewMode: parts[1], Status: parts[4][0], Path: fields[i],
 		})
 	}
+
 	return changes, nil
 }
 
@@ -84,22 +89,27 @@ func Validate(changes []Change, patchBytes int, l Limits) Result {
 	if len(changes) == 0 {
 		r.Rejections = append(r.Rejections, "no changes")
 	}
+
 	if l.MaxFiles > 0 && len(changes) > l.MaxFiles {
 		r.Rejections = append(r.Rejections, fmt.Sprintf("%d files changed (limit %d)", len(changes), l.MaxFiles))
 	}
+
 	if l.MaxBytes > 0 && patchBytes > l.MaxBytes {
 		r.Rejections = append(r.Rejections, fmt.Sprintf("patch is %d bytes (limit %d)", patchBytes, l.MaxBytes))
 	}
+
 	for _, c := range changes {
 		p := c.Path
 		if reason := badPath(p); reason != "" {
 			r.Rejections = append(r.Rejections, fmt.Sprintf("%s: %s", p, reason))
 			continue
 		}
+
 		if denied(p, l.DenyPaths) {
 			r.Rejections = append(r.Rejections, fmt.Sprintf("%s: denied for this repository (DENY_PATHS)", p))
 			continue
 		}
+
 		if c.Status != 'D' {
 			switch c.NewMode {
 			case "100644":
@@ -115,6 +125,7 @@ func Validate(changes []Change, patchBytes int, l Limits) Result {
 				r.Rejections = append(r.Rejections, fmt.Sprintf("%s: unexpected mode %s", p, c.NewMode))
 			}
 		}
+
 		base := path.Base(p)
 		switch {
 		case lockfiles[base]:
@@ -123,6 +134,7 @@ func Validate(changes []Change, patchBytes int, l Limits) Result {
 			r.Warnings = append(r.Warnings, fmt.Sprintf("%s: check scripts and dependencies", p))
 		}
 	}
+
 	return r
 }
 
@@ -130,24 +142,29 @@ func badPath(p string) string {
 	if p == "" || strings.HasPrefix(p, "/") || path.Clean(p) != p {
 		return "non-canonical path"
 	}
+
 	for _, part := range strings.Split(p, "/") {
 		if part == ".." || part == "." || strings.EqualFold(part, ".git") {
 			return "forbidden path component"
 		}
 	}
+
 	for _, pre := range deniedPrefixes {
 		if strings.HasPrefix(p+"/", pre) || strings.Contains("/"+p, "/"+pre) {
 			return "protected path"
 		}
 	}
+
 	base := path.Base(p)
 	if deniedNames[base] {
 		return "protected file"
 	}
+
 	if (base == ".env" || strings.HasPrefix(base, ".env.")) &&
 		!strings.HasSuffix(base, ".example") && !strings.HasSuffix(base, ".sample") {
 		return "environment file"
 	}
+
 	return ""
 }
 
@@ -157,5 +174,6 @@ func denied(p string, prefixes []string) bool {
 			return true
 		}
 	}
+
 	return false
 }

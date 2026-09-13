@@ -42,16 +42,20 @@ func Create(ctx context.Context, name, workspace string, o Options) (*Sandbox, e
 	if o.CPUs > 0 {
 		args = append(args, "--cpus", strconv.Itoa(o.CPUs))
 	}
+
 	if o.Memory != "" {
 		args = append(args, "-m", o.Memory)
 	}
+
 	for _, h := range o.DenyNetwork {
 		args = append(args, "--deny-network", h)
 	}
+
 	args = append(args, "claude", workspace)
 	if out, err := run(ctx, nil, args...); err != nil {
 		return nil, fmt.Errorf("sbx create: %w: %s", err, tail(out))
 	}
+
 	return &Sandbox{name: name, workspace: workspace}, nil
 }
 
@@ -61,20 +65,26 @@ func (s *Sandbox) Exec(ctx context.Context, o sandbox.ExecOptions, argv ...strin
 	if dir == "" {
 		dir = s.workspace
 	}
+
 	args := []string{"exec", "-w", dir}
 	if o.User != "" {
 		args = append(args, "-u", o.User)
 	}
+
 	for _, e := range o.Env {
 		args = append(args, "-e", e)
 	}
+
 	args = append(args, s.name)
 	args = append(args, argv...)
 	cmd := exec.CommandContext(ctx, "sbx", args...)
+
 	var out, errb bytes.Buffer
+
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	cmd.WaitDelay = 10 * time.Second
 	err = cmd.Run()
+
 	return out.Bytes(), errb.Bytes(), err
 }
 
@@ -82,10 +92,12 @@ func (s *Sandbox) Exec(ctx context.Context, o sandbox.ExecOptions, argv ...strin
 func (s *Sandbox) Remove() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+
 	out, err := run(ctx, nil, "rm", "--force", s.name)
 	if err != nil {
 		return fmt.Errorf("sbx rm: %w: %s", err, tail(out))
 	}
+
 	return nil
 }
 
@@ -96,14 +108,18 @@ func (s *Sandbox) RemoveHard(cpus string) error {
 	if err == nil {
 		return nil
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+
 	if out, serr := run(ctx, nil, "daemon", "stop"); serr != nil {
 		return fmt.Errorf("%w; daemon stop: %v: %s", err, serr, tail(out))
 	}
+
 	if derr := EnsureDaemon(ctx, cpus); derr != nil {
 		return fmt.Errorf("%w; daemon restart: %v", err, derr)
 	}
+
 	return s.Remove()
 }
 
@@ -112,6 +128,7 @@ func run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
+
 	return cmd.CombinedOutput()
 }
 
@@ -120,5 +137,6 @@ func tail(b []byte) string {
 	if len(s) > 600 {
 		s = "…" + s[len(s)-600:]
 	}
+
 	return s
 }

@@ -79,6 +79,7 @@ func (r Registry) New(name string, o Options) (Provider, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown sandbox provider %q (known: %s)", name, strings.Join(r.Names(), ", "))
 	}
+
 	return f(o)
 }
 
@@ -88,6 +89,8 @@ func (r Registry) Names() []string {
 	for n := range r {
 		out = append(out, n)
 	}
+
 	sort.Strings(out)
+
 	return out
 }

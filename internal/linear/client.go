@@ -40,16 +40,20 @@ func (c *Client) client() graphql.Client {
 		if base == nil {
 			base = &http.Client{Timeout: 30 * time.Second}
 		}
+
 		tr := base.Transport
 		if tr == nil {
 			tr = http.DefaultTransport
 		}
+
 		url := endpoint
 		if c.endpoint != "" {
 			url = c.endpoint
 		}
+
 		c.gql = graphql.NewClient(url, &http.Client{Timeout: base.Timeout, Transport: authTransport{c: c, base: tr}})
 	})
+
 	return c.gql
 }
 
@@ -66,18 +70,22 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		r := req.Clone(req.Context())
 		if attempt > 0 && req.GetBody != nil {
 			if r.Body, err = req.GetBody(); err != nil {
 				return nil, err
 			}
 		}
+
 		r.Header.Set("Authorization", auth)
+
 		resp, err := t.base.RoundTrip(r)
 		if err == nil && resp.StatusCode == http.StatusUnauthorized && attempt == 0 && req.GetBody != nil {
 			_ = resp.Body.Close()
 			continue
 		}
+
 		return resp, err
 	}
 }
@@ -88,6 +96,7 @@ func (c *Client) Me(ctx context.Context) (*Person, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return personFrom(&r.Viewer.PersonFields), nil
 }
 
@@ -95,5 +104,6 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+
 	return s[:n] + "…"
 }

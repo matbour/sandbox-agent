@@ -32,6 +32,7 @@ func (c Comment) AuthorName() string {
 	if c.Author == nil {
 		return "someone"
 	}
+
 	return c.Author.Name
 }
 
@@ -63,6 +64,7 @@ func commentFrom(f *CommentFields) Comment {
 	if f.User != nil {
 		c.Author = personFrom(&f.User.PersonFields)
 	}
+
 	return c
 }
 
@@ -71,20 +73,26 @@ func issueFrom(f *IssueFields) Issue {
 	if f.Description != nil {
 		is.Description = *f.Description
 	}
+
 	if f.Creator != nil {
 		is.Creator = personFrom(&f.Creator.PersonFields)
 	}
+
 	if f.Assignee != nil {
 		is.Assignee = personFrom(&f.Assignee.PersonFields)
 	}
+
 	if f.Delegate != nil {
 		is.Delegate = personFrom(&f.Delegate.PersonFields)
 	}
+
 	for i := range f.Labels.Nodes {
 		is.Labels = append(is.Labels, labelFrom(&f.Labels.Nodes[i].LabelFields))
 	}
+
 	for i := range f.Comments.Nodes {
 		is.Comments = append(is.Comments, commentFrom(&f.Comments.Nodes[i].CommentFields))
 	}
+
 	return is
 }

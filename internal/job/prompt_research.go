@@ -29,20 +29,27 @@ the answer (no preamble). If the person writes in another language than English,
 func ResearchPrompt(is linear.Issue, requester, request, notes string) string {
 	var b strings.Builder
 	b.WriteString(researchInstructions)
+
 	if notes = strings.TrimSpace(notes); notes != "" {
 		b.WriteString("\nRepository notes from the operator:\n" + notes + "\n")
 	}
+
 	fmt.Fprintf(&b, "\n<request>\nFrom %s:\n%s\n</request>\n\n<issue>\n", defang(requester), defang(strings.TrimSpace(request)))
 	fmt.Fprintf(&b, "Identifier: %s\nTitle: %s\n\nDescription:\n%s\n", is.Identifier, defang(is.Title), orNone(defang(is.Description)))
+
 	var comments []string
+
 	for _, c := range is.Comments {
 		if !strings.HasPrefix(strings.TrimSpace(c.Body), Marker) {
 			comments = append(comments, fmt.Sprintf("- %s: %s", defang(c.AuthorName()), defang(strings.TrimSpace(c.Body))))
 		}
 	}
+
 	if len(comments) > 0 {
 		b.WriteString("\nComments:\n" + strings.Join(comments, "\n") + "\n")
 	}
+
 	b.WriteString("</issue>\n")
+
 	return b.String()
 }
