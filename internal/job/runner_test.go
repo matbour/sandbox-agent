@@ -39,8 +39,12 @@ func TestWorkdir(t *testing.T) {
 	if w.slug != "eng-750" || !strings.HasPrefix(filepath.Base(w.dir), "eng-750-update-") {
 		t.Fatalf("names: %+v", w)
 	}
-	os.WriteFile(filepath.Join(w.dir, "agent.json"), []byte("{}"), 0o600)
-	os.MkdirAll(filepath.Join(w.repo, ".git"), 0o700)
+	if err := os.WriteFile(filepath.Join(w.dir, "agent.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(w.repo, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	cleanWorkdir(w.dir)
 	if _, err := os.Stat(w.ws); !os.IsNotExist(err) {
 		t.Fatal("workspace not removed")

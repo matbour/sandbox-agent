@@ -18,7 +18,7 @@ type PullRequest struct {
 // CreateDraftPR opens a draft pull request from head into base.
 func (r *Repo) CreateDraftPR(ctx context.Context, head, base, title, body string) (*PullRequest, error) {
 	pr, _, err := r.gh().PullRequests.Create(ctx, r.Owner, r.Name, gh.CreatePullRequest{
-		Title: gh.Ptr(title), Head: head, Base: base, Body: gh.Ptr(body), Draft: gh.Ptr(true),
+		Title: new(title), Head: head, Base: base, Body: new(body), Draft: new(true),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("github: create pull request: %w", err)

@@ -44,7 +44,7 @@ func exportTree(ctx context.Context, repoDir, dst string) error {
 	if _, err := g.Run(ctx, "archive", "--format=tar", "-o", tarPath, "HEAD"); err != nil {
 		return err
 	}
-	defer os.Remove(tarPath)
+	defer func() { _ = os.Remove(tarPath) }()
 	cmd := exec.CommandContext(ctx, "tar", "-xf", tarPath, "-C", dst, "--no-same-owner")
 	if b, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tar: %w: %s", err, b)

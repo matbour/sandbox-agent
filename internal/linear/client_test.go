@@ -24,35 +24,41 @@ func fake(t *testing.T, reject401 bool) (*httptest.Server, *[]gqlReq, *int) {
 	minted := 0
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Form.Get("grant_type") != "client_credentials" || r.Form.Get("client_secret") != "sec" {
 			http.Error(w, "bad", 400)
 			return
 		}
 		minted++
-		fmt.Fprintf(w, `{"access_token":"tok%d","expires_in":2592000}`, minted)
+		_, _ = fmt.Fprintf(w, `{"access_token":"tok%d","expires_in":2592000}`, minted)
 	})
 	mux.HandleFunc("POST /graphql", func(w http.ResponseWriter, r *http.Request) {
 		var q gqlReq
 		b, _ := io.ReadAll(r.Body)
-		json.Unmarshal(b, &q)
+		if err := json.Unmarshal(b, &q); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		q.Auth = r.Header.Get("Authorization")
 		reqs = append(reqs, q)
 		if reject401 && len(reqs) == 1 {
-			http.Error(w, "revoked", 401)
+			http.Error(w, "revoked", http.StatusUnauthorized)
 			return
 		}
 		switch {
 		case strings.Contains(q.Query, "query Viewer"):
-			fmt.Fprint(w, `{"data":{"viewer":{"id":"u1","name":"Sandbox Agent"}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"viewer":{"id":"u1","name":"Sandbox Agent"}}}`)
 		case strings.Contains(q.Query, "query IssueByID"):
-			fmt.Fprint(w, `{"data":{"issue":{"id":"i1","identifier":"ENG-1","title":"T","description":null,"url":"https://l/ENG-1",
+			_, _ = fmt.Fprint(w, `{"data":{"issue":{"id":"i1","identifier":"ENG-1","title":"T","description":null,"url":"https://l/ENG-1",
 				"team":{"key":"ENG"},"creator":{"id":"u2","name":"Mathieu"},"assignee":null,"delegate":{"id":"u1","name":"Sandbox Agent"},
 				"labels":{"nodes":[{"id":"l1","name":"agent"}]},"comments":{"nodes":[{"body":"hi","user":null}]}}}}`)
 		case strings.Contains(q.Query, "mutation CreateComment"), strings.Contains(q.Query, "mutation CreateAgentActivity"):
-			fmt.Fprint(w, `{"data":{"commentCreate":{"success":true},"agentActivityCreate":{"success":true}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"commentCreate":{"success":true},"agentActivityCreate":{"success":true}}}`)
 		default:
-			fmt.Fprint(w, `{"errors":[{"message":"unexpected query"}]}`)
+			_, _ = fmt.Fprint(w, `{"errors":[{"message":"unexpected query"}]}`)
 		}
 	})
 	return httptest.NewServer(mux), &reqs, &minted

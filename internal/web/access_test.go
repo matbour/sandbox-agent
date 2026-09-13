@@ -27,7 +27,7 @@ func get(h http.Handler, path string, hdr map[string]string) int {
 func TestOverviewAccess(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	certs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
 			"kid": "k1", "kty": "RSA",
 			"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
 			"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),

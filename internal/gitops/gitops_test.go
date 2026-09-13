@@ -23,17 +23,27 @@ func setup(t *testing.T, mainEdit, featureEdit string) (*Git, string) {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
 	}
-	os.MkdirAll(origin, 0o755)
+	if err := os.MkdirAll(origin, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	run(origin, "init", "-q")
-	os.WriteFile(filepath.Join(origin, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(origin, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(origin, "add", "-A")
 	run(origin, "commit", "-qm", "base")
 	run(origin, "checkout", "-qb", "agent/x")
-	os.WriteFile(filepath.Join(origin, "a.txt"), []byte(featureEdit), 0o644)
+	if err := os.WriteFile(filepath.Join(origin, "a.txt"), []byte(featureEdit), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(origin, "commit", "-qam", "feature")
 	run(origin, "checkout", "-q", "main")
-	os.WriteFile(filepath.Join(origin, "a.txt"), []byte(mainEdit), 0o644)
-	os.WriteFile(filepath.Join(origin, "b.txt"), []byte("new on main\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(origin, "a.txt"), []byte(mainEdit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(origin, "b.txt"), []byte("new on main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(origin, "add", "-A")
 	run(origin, "commit", "-qm", "main moves")
 	clone := filepath.Join(root, "clone")
@@ -69,7 +79,9 @@ func TestMergeBaseConflict(t *testing.T) {
 	if err := CheckNoMarkers(clone, conflicts); err == nil {
 		t.Fatal("markers not detected")
 	}
-	os.WriteFile(filepath.Join(clone, "a.txt"), []byte("one\nTWO both\nthree\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(clone, "a.txt"), []byte("one\nTWO both\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := CheckNoMarkers(clone, conflicts); err != nil {
 		t.Fatal(err)
 	}

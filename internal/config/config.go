@@ -76,7 +76,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }() // read only
 		sc := bufio.NewScanner(f)
 		for n := 1; sc.Scan(); n++ {
 			line := strings.TrimSpace(sc.Text())

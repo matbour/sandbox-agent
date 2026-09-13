@@ -29,7 +29,7 @@ func Run(t *testing.T, p sandbox.Provider, workRoot string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(ws)
+	defer func() { _ = os.RemoveAll(ws) }()
 	if err := os.WriteFile(filepath.Join(ws, "from-host.txt"), []byte("hello from host\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,15 +98,15 @@ func Run(t *testing.T, p sandbox.Provider, workRoot string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer l.Close()
+		defer func() { _ = l.Close() }()
 		go func() {
 			for {
 				c, err := l.Accept()
 				if err != nil {
 					return
 				}
-				fmt.Fprint(c, "HTTP/1.0 200 OK\r\n\r\nreached-the-host")
-				c.Close()
+				_, _ = fmt.Fprint(c, "HTTP/1.0 200 OK\r\n\r\nreached-the-host")
+				_ = c.Close()
 			}
 		}()
 		port := l.Addr().(*net.TCPAddr).Port

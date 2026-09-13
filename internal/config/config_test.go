@@ -16,7 +16,9 @@ func write(t *testing.T, dir, name, content string, mode os.FileMode) {
 
 func TestLoadSecretsDir(t *testing.T) {
 	dir := t.TempDir()
-	os.Chmod(dir, 0o700)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	write(t, dir, ConfigFile, "GITHUB_APP_ID=1\nGITHUB_INSTALLATION_ID=2\nGITHUB_REPO=o/r\n", 0o600)
 	write(t, dir, LinearIDFile, "id\n", 0o600)
 	write(t, dir, LinearSecFile, "secret\n", 0o600)
@@ -35,7 +37,9 @@ func TestLoadSecretsDir(t *testing.T) {
 
 func TestLoadRejectsOpenPermissions(t *testing.T) {
 	dir := t.TempDir()
-	os.Chmod(dir, 0o700)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	write(t, dir, ConfigFile, "GITHUB_APP_ID=1\nGITHUB_INSTALLATION_ID=2\nGITHUB_REPO=o/r\n", 0o600)
 	write(t, dir, LinearIDFile, "id", 0o600)
 	write(t, dir, LinearSecFile, "secret", 0o644)
@@ -43,8 +47,12 @@ func TestLoadRejectsOpenPermissions(t *testing.T) {
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "chmod 0600") {
 		t.Fatalf("expected permission error, got %v", err)
 	}
-	os.Chmod(filepath.Join(dir, LinearSecFile), 0o600)
-	os.Chmod(dir, 0o755)
+	if err := os.Chmod(filepath.Join(dir, LinearSecFile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "chmod 0700") {
 		t.Fatalf("expected directory permission error, got %v", err)
 	}
@@ -52,7 +60,9 @@ func TestLoadRejectsOpenPermissions(t *testing.T) {
 
 func TestLoadReportsMissing(t *testing.T) {
 	dir := t.TempDir()
-	os.Chmod(dir, 0o700)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	_, err := Load(dir)
 	if err == nil || !strings.Contains(err.Error(), "linear-client-id") || !strings.Contains(err.Error(), "github-app.pem") {
 		t.Fatalf("expected missing settings, got %v", err)
@@ -93,7 +103,9 @@ func TestModelFor(t *testing.T) {
 func TestLinearCredentials(t *testing.T) {
 	base := func(t *testing.T) string {
 		dir := t.TempDir()
-		os.Chmod(dir, 0o700)
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
 		write(t, dir, ConfigFile, "GITHUB_APP_ID=1\nGITHUB_INSTALLATION_ID=2\nGITHUB_REPO=o/r\n", 0o600)
 		write(t, dir, GitHubKeyFile, "pem", 0o600)
 		return dir

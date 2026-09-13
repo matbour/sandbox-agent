@@ -44,7 +44,7 @@ type Server struct {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /webhooks/linear", s.linearWebhook)
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "ok\n") })
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 	mux.Handle("GET /api/jobs", s.people(http.HandlerFunc(s.apiJobs)))
 	mux.Handle("GET /{$}", s.people(http.HandlerFunc(s.overview)))
 	return securityHeaders(mux)

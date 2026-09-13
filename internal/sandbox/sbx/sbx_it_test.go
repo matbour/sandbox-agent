@@ -19,6 +19,8 @@ func TestConformance(t *testing.T) {
 	}
 	home, _ := os.UserHomeDir()
 	root := filepath.Join(home, ".local/state/sandbox-agent/conformance")
-	os.MkdirAll(root, 0o700)
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	sandboxtest.Run(t, p, root)
 }

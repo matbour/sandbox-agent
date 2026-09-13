@@ -31,7 +31,7 @@ func EnsureDaemon(ctx context.Context, cpus string) error {
 	if err != nil {
 		return err
 	}
-	defer devnull.Close()
+	defer func() { _ = devnull.Close() }()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, devnull
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start sbx daemon: %w", err)

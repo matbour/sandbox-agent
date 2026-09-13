@@ -25,22 +25,22 @@ func fakeAPI(t *testing.T, key *rsa.PrivateKey) (*httptest.Server, *[]string) {
 		jwt := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		parts := strings.Split(jwt, ".")
 		if len(parts) != 3 {
-			http.Error(w, "no JWT", 401)
+			http.Error(w, "no JWT", http.StatusUnauthorized)
 			return
 		}
 		claims, _ := base64.RawURLEncoding.DecodeString(parts[1])
 		if !strings.Contains(string(claims), `"iss":"7"`) {
-			http.Error(w, "wrong issuer: "+string(claims), 401)
+			http.Error(w, "wrong issuer: "+string(claims), http.StatusUnauthorized)
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
 		seen = append(seen, "token "+string(body))
-		fmt.Fprintf(w, `{"token":"ghs_test","expires_at":"%s"}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
+		_, _ = fmt.Fprintf(w, `{"token":"ghs_test","expires_at":"%s"}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
 	})
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer ghs_test" {
-				http.Error(w, "bad token", 401)
+				http.Error(w, "bad token", http.StatusUnauthorized)
 				return
 			}
 			h(w, r)
@@ -48,46 +48,46 @@ func fakeAPI(t *testing.T, key *rsa.PrivateKey) (*httptest.Server, *[]string) {
 	}
 	page := func(w http.ResponseWriter, r *http.Request, srv string, first, second string) {
 		if r.URL.Query().Get("page") == "2" {
-			fmt.Fprint(w, second)
+			_, _ = fmt.Fprint(w, second)
 			return
 		}
 		w.Header().Set("Link", fmt.Sprintf(`<%s%s?page=2>; rel="next"`, srv, r.URL.Path))
-		fmt.Fprint(w, first)
+		_, _ = fmt.Fprint(w, first)
 	}
 	var srv *httptest.Server
 	mux.HandleFunc("GET /repos/o/r", auth(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"default_branch":"main"}`)
+		_, _ = fmt.Fprint(w, `{"default_branch":"main"}`)
 	}))
 	mux.HandleFunc("POST /repos/o/r/pulls", auth(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		seen = append(seen, "create "+string(body))
-		fmt.Fprint(w, `{"number":20,"node_id":"PR_x","html_url":"https://github.com/o/r/pull/20"}`)
+		_, _ = fmt.Fprint(w, `{"number":20,"node_id":"PR_x","html_url":"https://github.com/o/r/pull/20"}`)
 	}))
 	mux.HandleFunc("GET /repos/o/r/issues/20/comments", auth(func(w http.ResponseWriter, r *http.Request) {
 		page(w, r, srv.URL, `[{"user":{"login":"a"},"body":"one"}]`, `[{"user":{"login":"b"},"body":"two"}]`)
 	}))
 	mux.HandleFunc("GET /repos/o/r/pulls/20/reviews", auth(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `[{"user":{"login":"c"},"body":"please fix","state":"CHANGES_REQUESTED"},{"user":{"login":"d"},"body":"","state":"APPROVED"}]`)
+		_, _ = fmt.Fprint(w, `[{"user":{"login":"c"},"body":"please fix","state":"CHANGES_REQUESTED"},{"user":{"login":"d"},"body":"","state":"APPROVED"}]`)
 	}))
 	mux.HandleFunc("GET /repos/o/r/pulls/20/comments", auth(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `[{"user":{"login":"e"},"body":"nit","path":"a.ts","line":3}]`)
+		_, _ = fmt.Fprint(w, `[{"user":{"login":"e"},"body":"nit","path":"a.ts","line":3}]`)
 	}))
 	mux.HandleFunc("GET /repos/o/r/commits/abc/check-runs", auth(func(w http.ResponseWriter, r *http.Request) {
 		page(w, r, srv.URL, `{"check_runs":[{"name":"Tests","status":"completed","conclusion":"failure","output":{"title":"2 failed","summary":"x"}}]}`,
 			`{"check_runs":[{"name":"Lint","status":"in_progress"}]}`)
 	}))
 	mux.HandleFunc("GET /repos/o/r/commits/abc/status", auth(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"statuses":[{"context":"Vercel","state":"failure","description":"Deployment has failed"}]}`)
+		_, _ = fmt.Fprint(w, `{"statuses":[{"context":"Vercel","state":"failure","description":"Deployment has failed"}]}`)
 	}))
 	mux.HandleFunc("POST /graphql", auth(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		seen = append(seen, "graphql "+string(body))
-		fmt.Fprint(w, `{"data":{"markPullRequestReadyForReview":{"pullRequest":{"isDraft":false}}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"markPullRequestReadyForReview":{"pullRequest":{"isDraft":false}}}}`)
 	}))
 	mux.HandleFunc("POST /repos/o/r/issues/20/comments", auth(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		seen = append(seen, "comment "+string(body))
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	srv = httptest.NewServer(mux)
 	return srv, &seen
@@ -124,7 +124,9 @@ func TestAppAndRepo(t *testing.T) {
 		t.Fatalf("create: %+v %v", pr, err)
 	}
 	var created map[string]any
-	json.Unmarshal([]byte(strings.TrimPrefix((*seen)[1], "create ")), &created)
+	if err := json.Unmarshal([]byte(strings.TrimPrefix((*seen)[1], "create ")), &created); err != nil {
+		t.Fatal(err)
+	}
 	if created["draft"] != true || created["head"] != "agent/x" || created["base"] != "main" {
 		t.Errorf("create body: %v", created)
 	}

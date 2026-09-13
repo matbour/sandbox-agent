@@ -33,7 +33,9 @@ func TestStateLifecycle(t *testing.T) {
 func TestInterruptedJob(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "jobs", "eng-2-x")
-	os.MkdirAll(dir, 0o700)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	update(dir, func(s *State) { s.Issue, s.Stage, s.PID, s.Started = "ENG-2", StageAgent, 1<<30, time.Now() })
 	jobs, _ := Jobs(root)
 	if jobs[0].Stage != StageInterrupted {
@@ -44,8 +46,12 @@ func TestInterruptedJob(t *testing.T) {
 func TestImport(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "jobs", "eng-3-x")
-	os.MkdirAll(dir, 0o700)
-	os.WriteFile(filepath.Join(dir, "status.json"), []byte(`{"issue":"ENG-3","stage":"done","started":"2026-11-13T12:00:00Z"}`), 0o600)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "status.json"), []byte(`{"issue":"ENG-3","stage":"done","started":"2026-11-13T12:00:00Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	n, err := Import(root)
 	if err != nil || n != 1 {
 		t.Fatalf("import: %d %v", n, err)

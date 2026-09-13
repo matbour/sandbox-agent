@@ -77,7 +77,7 @@ func (c *Client) mint(ctx context.Context) (*appToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	var out struct {
 		AccessToken string `json:"access_token"`

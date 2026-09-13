@@ -16,11 +16,12 @@ import (
 
 // printStatus shows the service, the running sandboxes and the last jobs.
 func printStatus(w io.Writer, stateDir string, limit int) error {
+	p := &printer{w: w}
 	svc := "unknown"
 	if out, err := exec.Command("systemctl", "--user", "is-active", "sandbox-agent").Output(); err == nil || len(out) > 0 {
 		svc = strings.TrimSpace(string(out))
 	}
-	fmt.Fprintf(w, "service sandbox-agent: %s\n", svc)
+	p.printf("service sandbox-agent: %s\n", svc)
 	if out, err := exec.Command("sbx", "ls").Output(); err == nil {
 		var names []string
 		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n")[1:] {
@@ -31,26 +32,30 @@ func printStatus(w io.Writer, stateDir string, limit int) error {
 		if len(names) == 0 {
 			names = []string{"none"}
 		}
-		fmt.Fprintf(w, "sandboxes: %s\n", strings.Join(names, ", "))
+		p.printf("sandboxes: %s\n", strings.Join(names, ", "))
 	}
 	if q := job.Queued(stateDir); len(q) > 0 {
-		fmt.Fprintf(w, "queued: %d\n", len(q))
+		p.printf("queued: %d\n", len(q))
 		for _, s := range q {
-			fmt.Fprintf(w, "  %-8s %-9s since %s  %s\n", s.Issue, s.Kind(), s.Received.Local().Format("15:04"), cut(firstLine(s.Request), 60))
+			p.printf("  %-8s %-9s since %s  %s\n", s.Issue, s.Kind(), s.Received.Local().Format("15:04"), cut(firstLine(s.Request), 60))
 		}
 	}
 	jobs, err := job.Jobs(stateDir)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w)
+	p.printf("\n")
 	if len(jobs) == 0 {
-		fmt.Fprintln(w, "no jobs yet")
-		return nil
+		p.printf("no jobs yet\n")
+		return p.err
+	}
+	if p.err != nil {
+		return p.err
 	}
 	now := time.Now()
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ISSUE\tMODEL\tSTAGE\tSTARTED\tTIME\tCOST\tRESULT")
+	tp := &printer{w: tw}
+	tp.printf("ISSUE\tMODEL\tSTAGE\tSTARTED\tTIME\tCOST\tRESULT\n")
 	for i, s := range jobs {
 		if i == limit {
 			break
@@ -74,8 +79,11 @@ func printStatus(w io.Writer, stateDir string, limit int) error {
 		case !s.Terminal():
 			result = "running: " + s.Title
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Issue, strings.TrimPrefix(s.Model, "claude-"),
+		tp.printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Issue, strings.TrimPrefix(s.Model, "claude-"),
 			s.Stage, s.Started.Local().Format("Jan 02 15:04"), s.Elapsed(now), cost, cut(result, 70))
+	}
+	if tp.err != nil {
+		return tp.err
 	}
 	return tw.Flush()
 }
@@ -90,42 +98,56 @@ func printJob(w io.Writer, stateDir, issue string) error {
 		if !strings.EqualFold(s.Issue, issue) {
 			continue
 		}
-		fmt.Fprintf(w, "%s  %s\n", s.Issue, s.Title)
-		fmt.Fprintf(w, "  stage    %s (%s)\n", s.Stage, s.Elapsed(time.Now()))
-		fmt.Fprintf(w, "  model    %s\n", s.Model)
-		fmt.Fprintf(w, "  started  %s\n", s.Started.Local().Format(time.DateTime))
+		p := &printer{w: w}
+		p.printf("%s  %s\n", s.Issue, s.Title)
+		p.printf("  stage    %s (%s)\n", s.Stage, s.Elapsed(time.Now()))
+		p.printf("  model    %s\n", s.Model)
+		p.printf("  started  %s\n", s.Started.Local().Format(time.DateTime))
 		if s.URL != "" {
-			fmt.Fprintf(w, "  issue    %s\n", s.URL)
+			p.printf("  issue    %s\n", s.URL)
 		}
 		if s.PR != "" {
-			fmt.Fprintf(w, "  pr       %s\n", s.PR)
+			p.printf("  pr       %s\n", s.PR)
 		}
 		if s.Result != "" {
-			fmt.Fprintf(w, "  result   %s\n", s.Result)
+			p.printf("  result   %s\n", s.Result)
 		}
 		if s.CostUSD > 0 {
-			fmt.Fprintf(w, "  cost     $%.2f, %d turns\n", s.CostUSD, s.Turns)
+			p.printf("  cost     $%.2f, %d turns\n", s.CostUSD, s.Turns)
 		}
 		if s.Sandbox != "" && !s.Terminal() {
-			fmt.Fprintf(w, "  sandbox  %s (sbx exec -it %s bash)\n", s.Sandbox, s.Sandbox)
+			p.printf("  sandbox  %s (sbx exec -it %s bash)\n", s.Sandbox, s.Sandbox)
 		}
-		fmt.Fprintf(w, "  dir      %s\n", s.Dir)
+		p.printf("  dir      %s\n", s.Dir)
 		if s.Error != "" {
-			fmt.Fprintf(w, "\nerror:\n%s\n", indent(s.Error))
+			p.printf("\nerror:\n%s\n", indent(s.Error))
 		}
 		if b, err := os.ReadFile(filepath.Join(s.Dir, "agent.json")); err == nil {
 			var res struct {
 				Result string `json:"result"`
 			}
 			if json.Unmarshal(b, &res) == nil && res.Result != "" {
-				fmt.Fprintf(w, "\nagent's last message:\n%s\n", indent(cut(res.Result, 3000)))
+				p.printf("\nagent's last message:\n%s\n", indent(cut(res.Result, 3000)))
 			}
 		} else if b, err := os.ReadFile(filepath.Join(s.Dir, "setup.log")); err == nil && s.Stage == job.StageSetup {
-			fmt.Fprintf(w, "\nsetup log (end):\n%s\n", indent(lastLines(string(b), 10)))
+			p.printf("\nsetup log (end):\n%s\n", indent(lastLines(string(b), 10)))
 		}
-		return nil
+		return p.err
 	}
 	return fmt.Errorf("no job for %s", issue)
+}
+
+// printer writes formatted output, stops at the first write error and keeps it for the caller to
+// return. (A closed stdout never gets here: Go exits on SIGPIPE, as `agentd -status | head` shows.)
+type printer struct {
+	w   io.Writer
+	err error
+}
+
+func (p *printer) printf(format string, a ...any) {
+	if p.err == nil {
+		_, p.err = fmt.Fprintf(p.w, format, a...)
+	}
 }
 
 // firstLine flattens an error to one line ("patch rejected: - bunfig.toml: protected file").

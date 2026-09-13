@@ -96,7 +96,7 @@ func withState(root string, write bool, fn func(*stateFile) error) error {
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }() // closing also releases the lock
 	how := syscall.LOCK_SH
 	if write {
 		how = syscall.LOCK_EX
@@ -104,7 +104,7 @@ func withState(root string, write bool, fn func(*stateFile) error) error {
 	if err := syscall.Flock(int(lock.Fd()), how); err != nil {
 		return err
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 
 	path := filepath.Join(root, StateFile)
 	var sf stateFile

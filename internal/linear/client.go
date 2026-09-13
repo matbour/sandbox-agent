@@ -75,7 +75,7 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		r.Header.Set("Authorization", auth)
 		resp, err := t.base.RoundTrip(r)
 		if err == nil && resp.StatusCode == http.StatusUnauthorized && attempt == 0 && req.GetBody != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 		return resp, err
