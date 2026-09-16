@@ -132,6 +132,11 @@ tracked there (E-HOOK, S3) and here:
 
 ## Later
 
+- A Vercel Sandbox provider (cloud Firecracker microVMs), wanted by the owner as a commercial
+  reference point. Not before the local providers. What it will need, found on 2026-11-15: copy the
+  workspace in and out instead of mounting it, a worker built for its architecture (amd64 to
+  verify), the model key injected by its firewall's header rules, persistence turned off, a Vercel
+  access token on the host, and the REST API from Go (no official Go SDK).
 - Snapshot and restore of microVMs for fast starts.
 - Caching registry mirror with an allowlist.
 - Several repositories and per-repository policy files.
