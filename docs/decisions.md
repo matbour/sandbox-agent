@@ -379,11 +379,13 @@ be pushed, which also catches messages made with `--no-verify` or by a rebase. `
 `squash!` commits pass locally and are refused on push. Hooks only run where `make hooks` was run;
 CI does not check messages.
 
-## D37. Blank lines between blocks, enforced by wsl (2026-11-15)
+## D37. gofmt, and blank lines by judgment (2026-11-15)
 
-Dense Go code was hard to read. `.golangci.yml` enables `wsl_v5`, golangci-lint's whitespace
-linter: a blank line around blocks (`if`, `for`, `switch`, `defer`, `go`), before a `return` that
-follows other statements, and between statements that do not belong together, with its default
-settings. It is auto-fixable, so the rule costs nothing to follow: `make fmt` applies it, and the
-pre-commit hook and CI refuse code that breaks it. Applied to the whole code base on 2026-11-15
-(921 lines added, generated code excluded).
+Dense Go code was hard to read. Go's only formatting standard is `gofmt`, which keeps the blank
+lines it finds but never adds any; the official style guides leave blank lines inside functions to
+the author ("write in paragraphs"). We first enabled `wsl_v5`, golangci-lint's whitespace linter,
+which turns that into fixed rules, and applied it to the whole code base (921 blank lines). It is
+opinionated and uncommon in Go projects, so the linter was dropped the same day: the code keeps
+`gofmt` as its only formatter, and blank lines between logical steps are a judgment call, which
+Claude owns in the code it writes or touches (CLAUDE.md). The lines added by `wsl` stay; spots
+where they read as too much get thinned out when that code is next touched.

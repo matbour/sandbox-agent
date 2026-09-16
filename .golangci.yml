@@ -2,9 +2,6 @@ version: "2"
 
 linters:
   default: standard
-  enable:
-    # Blank lines between blocks, so code reads in paragraphs (D37). Auto-fixable: make fmt.
-    - wsl_v5
 
 formatters:
   enable:

@@ -9,9 +9,10 @@ Everything in this repository is in English: code, docs and commit messages.
 Commit messages follow Conventional Commits (`feat(linear): …`, `fix: …`, `docs: …`), checked by the
 `commit-msg` and `pre-push` hooks (D36, `scripts/check-commit-messages.sh`).
 
-Go code reads in paragraphs: a blank line before and after every block (`if`, `for`, `switch`,
-`defer`…), before a `return` that follows other statements, and between unrelated statements. The
-`wsl_v5` linter enforces it (D37); `make fmt` adds the missing lines.
+Go code is formatted by `gofmt` (`make fmt`) and reads in paragraphs: put a blank line between the
+logical steps of a function, so a reader sees the structure at a glance. No linter checks this
+(D37): it is a judgment call, and Claude is responsible for it in the code it writes or touches.
+Keep `err := …` and its `if err != nil` together.
 
 In conversation, answer in the language of the owner's last message: English when they write in
 English, French when they switch to French, and back again. This applies only to replies; what goes

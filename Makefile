@@ -33,10 +33,9 @@ test:
 lint:
 	$(GOLANGCI_LINT) run
 
-# Rewrite files with gofmt and goimports, then apply the linters' fixes (blank lines, D37).
+# Rewrite files with gofmt and goimports.
 fmt:
 	$(GOLANGCI_LINT) fmt
-	$(GOLANGCI_LINT) run --fix
 
 check: lint test build
 
