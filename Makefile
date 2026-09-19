@@ -1,20 +1,31 @@
-# The repository lives on the board, in ~/sandbox-agent. Builds are native (linux/arm64).
+# Development and deployment run on different architectures (linux/amd64 and linux/arm64, D38).
 # Go is installed in the home directory (~/.local/go): use the one on PATH, else that one.
 GO ?= $(shell command -v go 2>/dev/null || echo $(HOME)/.local/go/bin/go)
 
+# `make build` targets the machine it runs on and writes to bin/. Another architecture goes to its
+# own directory, so a cross-compiled binary never replaces the native one: `make build GOARCH=arm64`
+# writes to bin/linux-arm64/. `make cross` builds every architecture in ARCHES.
+HOSTARCH := $(shell $(GO) env GOHOSTARCH)
+GOARCH ?= $(HOSTARCH)
+ARCHES := amd64 arm64
+BINDIR := $(if $(filter $(HOSTARCH),$(GOARCH)),bin,bin/linux-$(GOARCH))
+
 # Keep this path stable: the AppArmor userns profile (M2, docs/host.md) will be attached to it.
-BIN := bin/sandbox
+BIN := $(BINDIR)/sandbox
 
 # Run with `go run` at a pinned version rather than as a go.mod tool: golangci-lint's many
 # dependencies would otherwise share our module graph and could bump our own versions.
 # CI pins the same version in .github/workflows/ci.yml: change both together.
 GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 
-.PHONY: build test lint fmt check hooks generate linear-schema clean
+.PHONY: build cross test lint fmt check hooks generate linear-schema clean
 
 build:
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o $(BIN) ./cmd/sandbox
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o bin/agentd ./cmd/agentd
+	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o $(BIN) ./cmd/sandbox
+	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o $(BINDIR)/agentd ./cmd/agentd
+
+cross:
+	for arch in $(ARCHES); do $(MAKE) --no-print-directory build GOARCH=$$arch || exit 1; done
 
 # Regenerate the Linear client (internal/linear/generated.go) from queries.graphql.
 generate:
