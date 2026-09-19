@@ -5,7 +5,7 @@ to work out, and mark anything not verified as "to verify".
 
 | File | Read it when |
 | --- | --- |
-| [host.md](host.md) | Anything that runs on the board: kernel features, users, AppArmor, other services, ingress |
+| [host.md](host.md) | Anything that runs on the board or the development machine: kernel features, users, AppArmor, other services, ingress, toolchains |
 | [architecture.md](architecture.md) | What runs today: flow from issue to PR, components, egress, validation, credentials, limits |
 | [threat-model.md](threat-model.md) | Before adding or relaxing any isolation or network rule |
 | [sandbox.md](sandbox.md) | Implementing layer 1: namespaces, mounts, cgroups, capabilities, Landlock, seccomp |

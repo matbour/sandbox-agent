@@ -85,8 +85,9 @@ bin/agentd -try ~/some/repo -task "Describe the change" [-model claude-opus-5-5]
 ## Development
 
 ```bash
-make build    # build bin/agentd and bin/sandbox (linux/arm64, static)
+make build    # build bin/agentd and bin/sandbox for this machine (static)
+make cross    # build for linux/amd64 and linux/arm64 (bin/linux-<arch>/ for the other one)
 make test     # run the tests
 ```
 
-The repository is checked out and built on the target host itself.
+Development happens on an x86-64 machine; the target host above runs arm64.

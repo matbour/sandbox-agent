@@ -38,7 +38,8 @@ host access, the home network layout and the other services on the board.
 
 ## Target host
 
-Generic facts in [docs/host.md](docs/host.md); access and specifics in the private notes.
+Generic facts in [docs/host.md](docs/host.md); access and specifics in the private notes. The rules
+below are about the board, the deployment target.
 
 - The development account is in `kvm`, **not** `docker`. sudo asks for a password: never try to
   bypass it. Ask the owner to run the command (`! ssh -t <host> sudo …`).
@@ -49,11 +50,17 @@ Generic facts in [docs/host.md](docs/host.md); access and specifics in the priva
 
 ## Workflow
 
-- The repository lives on the board, in `~/sandbox-agent` of the development account. Edit it there
-  (VS Code Remote-SSH, or Claude Code running on the board). There is no other working copy.
-- Go is installed in the home directory (`~/.local/go`), not system-wide. `make build` builds
-  `bin/agentd` and `bin/sandbox` natively, `make test` runs the tests. Nothing to copy: the binaries
-  are already on the board.
+Two machines (D38): an x86-64 development machine and the board (arm64), which is the deployment
+target. Details of both are in the private notes.
+
+- Development happens on the development machine: edit, build and test there. Tests that need a GPU
+  also run there; the board has none.
+- Go is installed in the home directory (`~/.local/go`) on each machine, not system-wide.
+  `make build` builds `bin/agentd` and `bin/sandbox` for the machine it runs on, `make cross` builds
+  linux/amd64 and linux/arm64 (the arm64 binaries go to `bin/linux-arm64/`), `make test` runs the
+  tests.
+- The board keeps its own checkout in `~/sandbox-agent`. How builds are deployed there is not
+  settled yet (roadmap, M0b).
 
 ## Rules
 

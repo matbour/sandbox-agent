@@ -389,3 +389,17 @@ opinionated and uncommon in Go projects, so the linter was dropped the same day:
 `gofmt` as its only formatter, and blank lines between logical steps are a judgment call, which
 Claude owns in the code it writes or touches (CLAUDE.md). The lines added by `wsl` stay; spots
 where they read as too much get thinned out when that code is next touched.
+
+## D38. Develop on an x86-64 machine, deploy to the board (2026-11-15)
+
+Supersedes D10's "develop on the board". The repository is now edited, built and tested on a
+separate x86-64 development machine; the board stays the deployment target. Tests that need a GPU
+also run on the development machine, which the board does not have. Go is still installed in the
+home directory (`~/.local/go`) on each machine, and `CGO_ENABLED=0` with static binaries (D1)
+still holds.
+
+`make build` now targets the architecture it runs on and writes to `bin/`; another architecture
+goes to `bin/linux-<arch>/`, so a cross-compiled binary never replaces a native one. `make cross`
+builds linux/amd64 and linux/arm64, and CI runs it, so code that only compiles on one architecture
+(syscall numbers in seccomp filters, for example) fails in CI. How the binaries reach the board is
+not decided yet (roadmap, M0b).

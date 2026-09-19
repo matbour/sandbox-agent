@@ -113,5 +113,44 @@ Installed system-wide: `git`, `nft`, `make`, `rsync`.
 
 Go is installed in the development account's home (`~/.local/go`, official tarball, checksum
 verified), not system-wide, so the toolchain does not touch the rest of the host. The repository is
-checked out in `~/sandbox-agent` and built there with `make build` (`GOOS=linux GOARCH=arm64
-CGO_ENABLED=0`, output `bin/agentd` and `bin/sandbox`). See decision D10.
+checked out in `~/sandbox-agent`. Development itself moved to a separate x86-64 machine (D38): see
+[Development machine](#development-machine).
+
+## Development machine
+
+An x86-64 Ubuntu machine where the code is edited, built and tested, including the tests that need
+a GPU. Its hardware and access are in the private notes. Toolchain, installed in the home directory
+(2026-11-15, official releases, checksums verified):
+
+| Tool | Version | Path |
+| --- | --- | --- |
+| Go | 1.27.3 | `~/.local/go` |
+| gVisor (`runsc`) | release-20261109.0 | `~/.local/opt/gvisor-<version>`, linked from `~/.local/bin` |
+| Firecracker, jailer | v1.18.0 | `~/.local/opt/firecracker-<version>`, linked from `~/.local/bin` |
+| Cloud Hypervisor, `ch-remote` | v54.1 (static) | `~/.local/opt/cloud-hypervisor-<version>`, linked from `~/.local/bin` |
+
+To upgrade one, unpack the new release into its own `~/.local/opt/<tool>-<version>` and repoint the
+link. The board has none of the three yet (see [Toolchain](#toolchain)).
+
+The same two host settings as on the board stand in the way: the development account must be in
+`kvm` for Firecracker and Cloud Hypervisor to open `/dev/kvm`, and unprivileged user namespaces are
+blocked by AppArmor (`kernel.apparmor_restrict_unprivileged_userns = 1`), which rootless `runsc`
+needs. The fix is a profile that grants only `userns,` to the home-directory `runsc`, installed once
+by the owner:
+
+```
+# /etc/apparmor.d/sandbox-agent-runsc, loaded with: sudo apparmor_parser -r <file>
+abi <abi/5.0>,
+include <tunables/global>
+
+profile sandbox-agent-runsc /home/<user>/.local/opt/gvisor-*/runsc flags=(unconfined) {
+  userns,
+
+  include if exists <local/sandbox-agent-runsc>
+}
+```
+
+The glob keeps working across upgrades (one directory per version). It also covers anything the
+account writes at that path, which is acceptable on the development machine only; deployed
+binaries go in a root-owned path. The exact command and the current state are in the private
+notes.
