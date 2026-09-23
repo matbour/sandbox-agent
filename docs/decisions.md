@@ -403,3 +403,12 @@ goes to `bin/linux-<arch>/`, so a cross-compiled binary never replaces a native 
 builds linux/amd64 and linux/arm64, and CI runs it, so code that only compiles on one architecture
 (syscall numbers in seccomp filters, for example) fails in CI. How the binaries reach the board is
 not decided yet (roadmap, M0b).
+
+## D39. Firecracker work starts on the development machine (2026-11-16)
+
+The Firecracker microVM is built and run on the x86-64 development machine first. It already boots
+a test guest there (M0b), while the board cannot be reached over SSH yet and its big.LITTLE CPU may
+not run Firecracker at all. The guest kernel and disk images are built for x86-64 first; the build
+must take the architecture as a parameter so the same steps produce arm64 images for the board
+later. The board spike (vCPUs pinned to cores 4-7) is postponed, not dropped: the board stays the
+deployment target (D38), and layer 2 is decided only once it has run there.

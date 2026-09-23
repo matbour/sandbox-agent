@@ -19,6 +19,9 @@ vsock, serial), fast boot, small attack surface. It supports aarch64.
 
 ### Spike
 
+Firecracker work starts on the x86-64 development machine (D39), where a test guest already
+boots; the steps below are for the board, once it is reachable.
+
 Goal: one microVM boots to a shell on the board.
 
 1. Download the latest arm64 Firecracker release (static binary) and its guest kernel and rootfs
