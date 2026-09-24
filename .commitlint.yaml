@@ -1,0 +1,26 @@
+# Conventional Commits (D36), checked by github.com/conventionalcommit/commitlint (go tool commitlint).
+# Run by scripts/check-commit-messages.sh from the commit-msg and pre-push hooks (lefthook.yml).
+min-version: v0.12.0
+formatter: default
+rules:
+  - header-max-length
+  - type-enum
+  - scope-charset
+  - description-full-stop
+severity:
+  default: error
+settings:
+  header-max-length:
+    argument: 72
+  type-enum:
+    argument: [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]
+  scope-charset:
+    argument: "abcdefghijklmnopqrstuvwxyz0123456789._/-"
+  description-full-stop:
+    argument: "."
+# Only what Git writes itself: merge commits, and fixup!/squash!/amend! commits, which the pre-push
+# hook refuses on its own.
+disable-default-ignores: true
+ignores:
+  - "^Merge "
+  - "^(amend|fixup|squash)! "

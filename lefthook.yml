@@ -11,12 +11,17 @@ pre-commit:
       glob: "*.{go,mod,sum}"
       run: make build
 
-# Conventional Commits (D36): checked when the message is written, and again for every commit
-# about to be pushed, so a message made with --no-verify or by a rebase is caught before it leaves.
+# Conventional Commits (D36), rules in .commitlint.yaml: checked when the message is written, and
+# again for every commit about to be pushed, so a message made with --no-verify or by a rebase is
+# caught before it leaves. commitlint runs with `go run` at a pinned version, not as a go.mod tool,
+# to keep its dependencies out of our module graph. The script uses the same version: change both.
+templates:
+  commitlint: go run github.com/conventionalcommit/commitlint@v0.12.0
+
 commit-msg:
   commands:
-    conventional-commits:
-      run: scripts/check-commit-messages.sh {1}
+    commitlint:
+      run: "{commitlint} lint --message {1}"
 
 pre-push:
   commands:

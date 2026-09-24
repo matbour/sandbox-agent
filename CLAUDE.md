@@ -7,7 +7,7 @@ a second layer. See [README.md](README.md).
 Everything in this repository is in English: code, docs and commit messages.
 
 Commit messages follow Conventional Commits (`feat(linear): …`, `fix: …`, `docs: …`), checked by the
-`commit-msg` and `pre-push` hooks (D36, `scripts/check-commit-messages.sh`).
+`commit-msg` and `pre-push` hooks with commitlint (D36, `.commitlint.yaml`).
 
 Go code is formatted by `gofmt` (`make fmt`) and reads in paragraphs: put a blank line between the
 logical steps of a function, so a reader sees the structure at a glance. No linter checks this

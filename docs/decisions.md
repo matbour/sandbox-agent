@@ -373,11 +373,17 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 at most 72 characters. `!` marks a breaking change, such as a removed setting. The whole history
 was rewritten to this format on 2026-11-15 (subjects only; bodies, authors and dates unchanged).
 
-`scripts/check-commit-messages.sh` is the check, a POSIX shell script with no dependency. Lefthook
-runs it twice: `commit-msg` on the message being written, and `pre-push` on every commit about to
-be pushed, which also catches messages made with `--no-verify` or by a rebase. `fixup!` and
-`squash!` commits pass locally and are refused on push. Hooks only run where `make hooks` was run;
-CI does not check messages.
+The rules are checked by [commitlint](https://github.com/conventionalcommit/commitlint) (Go),
+configured in `.commitlint.yaml` (2026-11-16; it replaced a hand-written regex). It runs through
+`go run` at a pinned version, not as a go.mod tool: as a tool, it bumped `golang.org/x/*` in our own
+module graph. Two differences from the regex: a description that starts with a capital letter is no
+longer refused (commitlint can only require the whole description in lower case, which refuses
+names like `Firecracker`), and commitlint's parser reads a body line that starts with `word: ` as
+the start of the footer and refuses the message ("at least one empty line required after body"):
+rewrap the line. Lefthook runs commitlint twice: `commit-msg` on the message being written, and
+`pre-push` on every commit about to be pushed (`scripts/check-commit-messages.sh` picks those
+commits), which also catches messages made with `--no-verify` or by a rebase. `fixup!`, `squash!` and `amend!` commits pass locally and are refused on push. Hooks only
+run where `make hooks` was run; CI does not check messages.
 
 ## D37. gofmt, and blank lines by judgment (2026-11-15)
 
