@@ -11,6 +11,7 @@ to work out, and mark anything not verified as "to verify".
 | [sandbox.md](sandbox.md) | Implementing layer 1: namespaces, mounts, cgroups, capabilities, Landlock, seccomp |
 | [docker-sandboxes.md](docker-sandboxes.md) | Installing, scripting or testing Docker Sandboxes (`sbx`), the first runtime |
 | [microvm.md](microvm.md) | Firecracker spike, gVisor fallback, layer comparison |
+| [rootfs.md](rootfs.md) | Agent root filesystem: Dockerfile, rootless Podman, ext4 image |
 | [agents.md](agents.md) | Agent backends, how the agent is run today, the prompt |
 | [decision/protocol.md](decision/protocol.md) | Manager, worker and binaries; the task and event protocol; session state machine (D33) |
 | [escape-tests.md](escape-tests.md) | The list of escape tests and their expected results |

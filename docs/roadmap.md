@@ -84,7 +84,13 @@ Design in [decision/protocol.md](decision/protocol.md).
 
 ## M1: microVM spike (Firecracker and Cloud Hypervisor)
 
-- [ ] Boot one Firecracker microVM pinned to cores 4-7 (see [microvm.md](microvm.md)).
+- [x] Boot a test Firecracker microVM on the development machine, with Firecracker's CI kernel
+      and rootfs (M0b).
+- [x] Agent rootfs from a Dockerfile, built rootless with Podman into an ext4 image; boots read-only
+      in Firecracker with the CI kernel ([rootfs.md](rootfs.md)).
+- [ ] Firecracker on the development machine first (D39): build our own guest kernel and
+      rootfs image, boot the agent's rootfs with no network device, reach the host over vsock.
+- [ ] Boot one Firecracker microVM on the board, pinned to cores 4-7 (see [microvm.md](microvm.md)).
 - [ ] Same with Cloud Hypervisor: both run on KVM and support arm64. Cloud Hypervisor also has
       PCI passthrough (GPUs), which Firecracker lacks. Both have snapshot and restore (arm64
       support of each to verify).

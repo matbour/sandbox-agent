@@ -10,3 +10,6 @@
 
 # Local Claude Code settings.
 /.claude/settings.local.json
+
+# Built disk images and kernels (scripts/build-rootfs.sh).
+/build/
