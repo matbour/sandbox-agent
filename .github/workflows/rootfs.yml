@@ -1,0 +1,72 @@
+# Build the agent's root filesystem (docs/rootfs.md) for amd64 and arm64, each on a runner of
+# that architecture, with the same script as on the development machine. Runs when the image or
+# its scripts change, and weekly, so a download that disappears or changes is noticed. Actions are
+# pinned to a commit SHA (D35); the comment gives the tag.
+name: Rootfs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/**
+      - scripts/build-rootfs.sh
+      - scripts/tar-to-ext4.sh
+      - .github/workflows/rootfs.yml
+  pull_request:
+    paths:
+      - images/**
+      - scripts/build-rootfs.sh
+      - scripts/tar-to-ext4.sh
+      - .github/workflows/rootfs.yml
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rootfs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Show the rootless setup
+        run: |
+          podman --version
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          grep "^$(id -un):" /etc/subuid /etc/subgid
+
+      - name: Build the rootfs
+        run: scripts/build-rootfs.sh ${{ matrix.arch }}
+
+      - name: Check the tools in the image
+        run: |
+          podman run --rm --network none localhost/sandbox-agent-rootfs:${{ matrix.arch }} sh -c '
+            set -e
+            test "$(id -u)" = 1000
+            git --version
+            bun --version
+            rg --version | head -n 1
+            claude --version
+          '
+
+      - name: Report the sizes
+        run: ls -l build/${{ matrix.arch }}/ | tee -a "$GITHUB_STEP_SUMMARY"

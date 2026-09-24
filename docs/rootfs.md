@@ -12,13 +12,17 @@ container image
         │  podman export         (one tar; files keep their owner, root, in the tar headers)
         ▼
 build/<arch>/rootfs.tar
-        │  mkfs.ext4 -d          (e2fsprogs ≥ 1.47.1 reads a tar directly)
+        │  mkfs.ext4 -d          (scripts/tar-to-ext4.sh, in the images/tools container)
         ▼
 build/<arch>/rootfs.ext4         (read-only root disk of the guest)
 ```
 
 Build it with `scripts/build-rootfs.sh [amd64|arm64]` (host architecture by default). `build/` is
-ignored by Git.
+ignored by Git. The only host requirement is rootless Podman.
+
+CI (`.github/workflows/rootfs.yml`) runs the same script for amd64 and arm64, each on a runner of
+that architecture, when the image or its scripts change and once a week, then checks that the
+tools start in the image.
 
 ## Why each step
 
@@ -30,7 +34,10 @@ ignored by Git.
   AppArmor profiles for `podman`, `buildah` and `crun` that allow user namespaces, so no profile of
   our own is needed (unlike `runsc`).
 - **Tar straight into ext4**: unpacking the tar as a normal user would make every file owned by
-  that user. `mkfs.ext4 -d <tar>` copies the owners recorded in the tar instead.
+  that user. `mkfs.ext4 -d <tar>` copies the owners recorded in the tar instead. It needs
+  e2fsprogs 1.47.1 or later built with libarchive: Ubuntu 24.04's is 1.47.0 and Alpine's is built
+  without libarchive, so the script runs it in a small Debian 13 container (`images/tools`), the
+  same on every machine.
 
 ## Contents
 
@@ -69,8 +76,8 @@ A first version on Ubuntu 24.04 with Node.js 24, Python and Claude Code installe
 
 ## To do
 
-- arm64 build: on the amd64 machine it needs QEMU user emulation (`qemu-user-static` and binfmt),
-  or build on the board. To verify.
+- arm64 build on the amd64 machine needs QEMU user emulation (`qemu-user-static` and binfmt); CI
+  builds it natively instead. Not built locally yet.
 - Our own guest kernel (no virtio-net) instead of Firecracker's CI kernel.
 - A guest init in Go that serves control over vsock, instead of `init=/bin/sh`.
 - A second, writable disk for the workspace.
