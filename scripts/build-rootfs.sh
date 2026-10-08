@@ -28,6 +28,11 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 out=$root/build/$arch
 image=localhost/sandbox-agent-rootfs:$arch
 tools=localhost/sandbox-agent-tools
+
+# build/ can hold Go files from downloaded packages (the Bun cache); a go.mod makes it a separate
+# module, so `go test ./...` and the linters skip it.
+mkdir -p "$root/build"
+[ -f "$root/build/go.mod" ] || echo "module build" >"$root/build/go.mod"
 mkdir -p "$out"
 
 podman build --platform "linux/$arch" --tag "$image" "$root/images/agent"

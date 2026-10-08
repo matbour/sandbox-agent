@@ -26,6 +26,11 @@ kernel_url=https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.15/x86_64/vm
 kernel_md5=44d1aea84475e5bed0dd4f27ddfca550
 kernel=$root/build/amd64/vmlinux
 
+# build/ can hold Go files from downloaded packages (the Bun cache); a go.mod makes it a separate
+# module, so `go test ./...` and the linters skip it.
+mkdir -p "$root/build"
+[ -f "$root/build/go.mod" ] || echo "module build" >"$root/build/go.mod"
+
 record() { # runtime, then "run <n> <ms>" lines on stdin
 	commit=$(cat "$input/COMMIT")
 	while read -r _ n ms; do
