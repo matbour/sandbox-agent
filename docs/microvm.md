@@ -43,6 +43,34 @@ Goal: one microVM boots to a shell on the board.
   cgroup), like Firecracker's `jailer` does. The `jailer` needs root; our runtime can play its role.
 - Snapshot and restore for fast starts is a stretch goal.
 
+### vsock, as Firecracker does it
+
+vsock is a socket family (`AF_VSOCK`) for a VM and its host, with no network stack: an address is a
+context ID (CID; the host is always 2) and a port. The guest uses it like TCP; its kernel carries
+the bytes over a `virtio-vsock` device to the VMM. A guest that has only vsock can reach exactly the
+ports the host listens on, and nothing else.
+
+Firecracker does not use the host kernel's `vhost-vsock`. It maps vsock to Unix sockets on the
+host, from the device's `uds_path` in the VM config:
+
+- Guest to host: a guest connection to (2, port) becomes a connection to the Unix socket
+  `<uds_path>_<port>`, which a host program must listen on.
+- Host to guest: the host connects to `<uds_path>`, writes `CONNECT <port>\n`, reads `OK ...`, and
+  the stream then reaches the guest's listener on that port.
+
+So the host side needs nothing vsock-specific, and file permissions on the socket decide who may
+use it. Unix socket paths are limited to 108 bytes, which rules out deep directories for
+`uds_path`.
+
+### Egress over vsock (verified 2026-11-16, development machine)
+
+`scripts/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
+guest, `forwarder` listens on `127.0.0.1:8080` (after `ip link set lo up`) and relays each
+connection to vsock port 8080 on the host; there, `egress-proxy` listens on `<uds_path>_8080`,
+adds the key and forwards to `api.anthropic.com`. With a placeholder key the API answers 401
+"invalid x-api-key" (the path works end to end); a path outside the allowlist gets 403 from the
+proxy. Firecracker's CI kernel 6.1.155 has `virtio_vsock` built in.
+
 ## Option A2: Cloud Hypervisor
 
 Cloud Hypervisor is a Rust VMM on KVM from the same rust-vmm family as Firecracker, with a wider

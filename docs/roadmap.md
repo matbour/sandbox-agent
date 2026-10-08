@@ -58,7 +58,7 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 
 Design in [decision/protocol.md](decision/protocol.md).
 
-- [ ] `make build` builds every `./cmd/...` into `bin/`.
+- [x] `make build` builds every `./cmd/...` into `bin/` (2026-11-16).
 - [ ] Import test: `cmd/worker`, `cmd/sandbox` and `internal/task` do not depend on `linear`,
       `github`, `config` or `gitops`.
 - [ ] `internal/task`: `Task`, `Event` and the event kinds, plus the manager's event reader with its
@@ -114,9 +114,13 @@ Design in [decision/protocol.md](decision/protocol.md).
 
 ## M4: egress proxy
 
-- [ ] Unix socket server with `/anthropic/*` route, key injection, allowlist,
-      size limits, per-job budget, logs.
-- [ ] Forwarder inside the sandbox on `127.0.0.1:8080`.
+- [x] `cmd/egress-proxy` (2026-11-16, D40): Unix socket server, `/anthropic/*` route, key
+      injection, exact method and path allowlist, body size limit, request log. Checked from a
+      Firecracker guest over vsock (`scripts/vsock-check.sh`).
+- [ ] Routes for other model providers, model allowlist, per-job budget and cost accounting, rate limit.
+- [x] `cmd/forwarder` inside the sandbox on `127.0.0.1:8080`, to vsock or a Unix socket
+      (2026-11-16).
+- [ ] Claude Code runs a real task through it, in Firecracker; list the calls it needs.
 - [ ] E-SEC and E-NET-6, E-NET-7 pass.
 
 ## M5: agent run in the layer 1 runtime

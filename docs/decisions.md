@@ -418,3 +418,20 @@ not run Firecracker at all. The guest kernel and disk images are built for x86-6
 must take the architecture as a parameter so the same steps produce arm64 images for the board
 later. The board spike (vCPUs pinned to cores 4-7) is postponed, not dropped: the board stays the
 deployment target (D38), and layer 2 is decided only once it has run there.
+
+## D40. Egress proxy: a separate binary, exact paths, Go standard library (2026-11-16)
+
+The first version of the M4 proxy is `cmd/egress-proxy`, a separate process from `agentd` (as
+planned in [decision/protocol.md](decision/protocol.md)): it is the only process that reads the
+model key, and it is reachable from the sandbox. It is `httputil.ReverseProxy` with a check in
+front: origin-form requests only (no `CONNECT`, no absolute URL), a canonical path with no encoded
+characters, and an exact `METHOD /path` allowlist per route (`POST /v1/messages` and
+`POST /v1/messages/count_tokens` for Anthropic). Credential headers from the sandbox are dropped
+and the route's key is set; upstream errors become a bare 502. Rejected calls are logged, which is
+how a call Claude Code needs shows up.
+
+The sandbox side is `cmd/forwarder`, a byte relay from loopback TCP to vsock or a Unix socket, with
+half-close in each direction. vsock is dialled with `golang.org/x/sys/unix` and wrapped in an
+`*os.File` rather than taking a dependency (`mdlayher/vsock`): the guest only dials, which is a few
+lines.
+

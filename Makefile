@@ -10,9 +10,6 @@ GOARCH ?= $(HOSTARCH)
 ARCHES := amd64 arm64
 BINDIR := $(if $(filter $(HOSTARCH),$(GOARCH)),bin,bin/linux-$(GOARCH))
 
-# Keep this path stable: the AppArmor userns profile (M2, docs/host.md) will be attached to it.
-BIN := $(BINDIR)/sandbox
-
 # Run with `go run` at a pinned version rather than as a go.mod tool: golangci-lint's many
 # dependencies would otherwise share our module graph and could bump our own versions.
 # CI pins the same version in .github/workflows/ci.yml: change both together.
@@ -20,9 +17,11 @@ GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lin
 
 .PHONY: build cross test lint fmt check hooks generate linear-schema clean
 
+# Every command in cmd/ goes to $(BINDIR)/<name>. Keep bin/sandbox stable: the AppArmor userns
+# profile (M2, docs/host.md) will be attached to its path.
 build:
-	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o $(BIN) ./cmd/sandbox
-	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o $(BINDIR)/agentd ./cmd/agentd
+	mkdir -p $(BINDIR)
+	GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o $(BINDIR)/ ./cmd/...
 
 cross:
 	for arch in $(ARCHES); do $(MAKE) --no-print-directory build GOARCH=$$arch || exit 1; done

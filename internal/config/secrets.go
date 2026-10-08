@@ -14,6 +14,7 @@ import (
 //	secrets/linear-webhook-secret  signing secret of the Linear webhook (optional)
 //	secrets/github-app.pem   GitHub App private key
 //	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
+//	secrets/anthropic-api-key  Anthropic API key, read by egress-proxy only
 //
 // The directory and every file read from it must not be accessible to group or others.
 const (
@@ -23,6 +24,7 @@ const (
 	LinearHookFile = "linear-webhook-secret"
 	GitHubKeyFile  = "github-app.pem"
 	SetupFile      = "setup.sh"
+	AnthropicFile  = "anthropic-api-key"
 )
 
 // CheckPrivate fails if path is accessible to group or others.
