@@ -36,8 +36,8 @@ Mentions without a pull request start a research run that changes nothing (D27).
 | `sbx` proxy | Host | Anthropic key (sbx secret store) | Injects the key and applies the network policy (D14) |
 | Agent | Inside the VM | No | Claude Code, non-interactive ([agents.md](agents.md)) |
 | `bin/sandbox` | — | — | Stub. Becomes the layer 1 runtime (M3, [sandbox.md](sandbox.md)) |
-| `egress-proxy` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40). Used by the Firecracker spike, not by `agentd` yet |
-| `forwarder` | Inside the sandbox | No | Relays `127.0.0.1:8080` to the proxy over vsock or a Unix socket |
+| `vsock-to-anthropic` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40, D41). Used by the Firecracker spike, not by `agentd` yet |
+| `loopback-to-vsock` | Inside the microVM | No | Relays `127.0.0.1:8080` to the host over vsock |
 
 The target components (manager, egress proxy, runtime, worker) are listed in
 [decision/protocol.md](decision/protocol.md).

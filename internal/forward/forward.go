@@ -1,7 +1,6 @@
-// Package forward relays TCP connections to another stream. It is the sandbox side of the egress
-// path (docs/architecture.md): agents connect to a loopback address, and each connection is
-// copied, byte for byte, to the egress proxy on the host (over vsock in a microVM, over a Unix
-// socket in the layer 1 sandbox). It does not read HTTP and holds no credential.
+// Package forward relays TCP connections to another stream, byte for byte, with half-close in each
+// direction. cmd/loopback-to-vsock uses it to carry an agent's loopback connections to the host
+// over vsock (docs/architecture.md). It does not read HTTP and holds no credential.
 package forward
 
 import (

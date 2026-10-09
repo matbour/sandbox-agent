@@ -435,3 +435,14 @@ half-close in each direction. vsock is dialled with `golang.org/x/sys/unix` and 
 `*os.File` rather than taking a dependency (`mdlayher/vsock`): the guest only dials, which is a few
 lines.
 
+## D41. Commands named after what they connect (2026-11-16)
+
+Supersedes the names in D40. `egress-proxy` and `forwarder` did not say which side of the VM they
+run on or what they connect, so the commands are named source-to-destination:
+`loopback-to-vsock` (in the guest: loopback TCP to a vsock port on the host) and
+`vsock-to-anthropic` (on the host: the Unix socket Firecracker maps the vsock port to, to the
+Anthropic API with the key added). The relay lost its Unix socket mode, which nothing used; the
+layer 1 sandbox gets its own relay when it needs one. The Go packages keep their role names
+(`internal/forward`, `internal/egress`), and a second provider route will either be a new command
+or a rename of `vsock-to-anthropic`.
+

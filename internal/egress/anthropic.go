@@ -6,7 +6,8 @@ import "net/url"
 const AnthropicUpstream = "https://api.anthropic.com"
 
 // Anthropic returns the route for the Anthropic API under /anthropic. The agent sets
-// ANTHROPIC_BASE_URL to http://<forwarder>/anthropic and any non-empty ANTHROPIC_API_KEY.
+// ANTHROPIC_BASE_URL to http://127.0.0.1:8080/anthropic (where loopback-to-vsock listens) and any
+// non-empty ANTHROPIC_API_KEY.
 //
 // Only the calls Claude Code needs to work are allowed. Others are rejected and logged, which is
 // how a missing one shows up.

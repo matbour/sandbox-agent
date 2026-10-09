@@ -3,7 +3,7 @@
 #
 # Every VM has the same shape: the agent rootfs as a read-only root disk, one writable work disk
 # mounted at /tmp/w in the guest, no network device, and an optional vsock device whose port 8080
-# leads to egress-proxy. The guest's init is a shell command (no init system yet): it mounts
+# leads to vsock-to-anthropic. The guest's init is a shell command (no init system yet): it mounts
 # /proc, a tmpfs on /tmp and the work disk, then runs the given command.
 #
 # Run directories live in build/firecracker/<name>/. Unix socket paths are limited to 108 bytes,
@@ -75,10 +75,10 @@ fc_config() {
 EOF
 }
 
-# fc_proxy <run dir> <key file>: start egress-proxy where guest vsock port 8080 arrives
+# fc_proxy <run dir> <key file>: start vsock-to-anthropic where guest vsock port 8080 arrives
 # (<uds_path>_8080). It is stopped when the calling script exits.
 fc_proxy() {
-	"$fc_root/bin/egress-proxy" -listen "$1/v.sock_8080" -key-file "$2" 2>"$1/proxy.log" &
+	"$fc_root/bin/vsock-to-anthropic" -listen "$1/v.sock_8080" -key-file "$2" 2>"$1/proxy.log" &
 	fc_proxy_pid=$!
 	trap 'kill $fc_proxy_pid 2>/dev/null || true' EXIT
 	sleep 0.3

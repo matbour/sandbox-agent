@@ -1,8 +1,9 @@
-// Command egress-proxy is the host side of the sandbox's only way out (M4, docs/architecture.md).
-// It listens on a Unix socket, which Firecracker connects guest vsock connections to, and
-// forwards the allowed model API calls with the key added. The key never enters the sandbox.
+// Command vsock-to-anthropic runs on the host. It listens on the Unix socket that Firecracker
+// connects a guest's vsock port to (<uds_path>_<port>), and forwards the Anthropic API calls it
+// allows to api.anthropic.com with the key added (M4, docs/architecture.md). The key never enters
+// the guest; loopback-to-vsock is the guest side.
 //
-//	egress-proxy -listen build/vm/v.sock_8080
+//	vsock-to-anthropic -listen build/firecracker/<run>/v.sock_8080
 package main
 
 import (
@@ -34,7 +35,7 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	if err := run(*listen, *keyFile, *upstream, log); err != nil {
-		log.Error("egress-proxy", "err", err)
+		log.Error("vsock-to-anthropic", "err", err)
 		os.Exit(1)
 	}
 }
@@ -83,13 +84,22 @@ func run(listen, keyFile, upstream string, log *slog.Logger) error {
 		MaxHeaderBytes:    64 << 10,
 	}
 
+	// Serve returns as soon as Shutdown starts, not when it ends: done lets run wait for the
+	// in-flight requests (often long streaming responses) before the process exits.
+	done := make(chan struct{})
+
 	go func() {
+		defer close(done)
+
 		<-ctx.Done()
 
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_ = srv.Shutdown(shutdown)
+		// Shutdown does not close active connections when the deadline passes; Close does.
+		if err := srv.Shutdown(shutdown); err != nil {
+			_ = srv.Close()
+		}
 	}()
 
 	log.Info("listening", "socket", listen, "upstream", up.String())
@@ -97,6 +107,8 @@ func run(listen, keyFile, upstream string, log *slog.Logger) error {
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+
+	<-done
 
 	return nil
 }

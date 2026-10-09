@@ -1,6 +1,7 @@
 // Package egress is the host-side proxy that sandboxes use to reach model APIs (M4,
-// docs/architecture.md). The sandbox speaks plain HTTP to it, without credentials; the proxy checks
-// each request against a fixed list of routes, injects the API key and forwards it over TLS.
+// docs/architecture.md), served by cmd/vsock-to-anthropic. The sandbox speaks plain HTTP to it,
+// without credentials; the proxy checks each request against a fixed list of routes, injects the
+// API key and forwards it over TLS.
 //
 // It is reachable from the sandbox, so it is attack surface: it is not a generic forward proxy
 // (no CONNECT, no absolute URLs, no other hosts), it only forwards the exact paths it knows, and

@@ -24,7 +24,7 @@ to work out, and mark anything not verified as "to verify".
 
 | Directory | What it holds |
 | --- | --- |
-| `cmd/`, `internal/` | Go: `agentd`, `egress-proxy`, `forwarder`, `sandbox` and their packages |
+| `cmd/`, `internal/` | Go: `agentd`, `vsock-to-anthropic`, `loopback-to-vsock`, `sandbox` and their packages |
 | `images/` | Dockerfiles of the agent rootfs and the tools container, shared by every runtime ([rootfs.md](rootfs.md)) |
 | `firecracker/` | Everything specific to Firecracker: `lib.sh` (kernel, disks, VM config, proxy, run), the run scripts, and `guest/` for what runs inside the VM ([microvm.md](microvm.md)) |
 | `bench/` | Benchmarks that compare runtimes ([benchmarks.md](benchmarks.md)) |

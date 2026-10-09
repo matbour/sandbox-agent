@@ -1,6 +1,6 @@
 #!/bin/sh
 # Check the egress path of a Firecracker guest (docs/microvm.md): a guest with no network device
-# reaches the Anthropic API through forwarder (guest, TCP to vsock) and egress-proxy (host, adds
+# reaches the Anthropic API through loopback-to-vsock (guest) and vsock-to-anthropic (host, adds
 # the key). The guest side is guest/vsock-check.sh.
 #
 #   firecracker/vsock-check.sh [key file]
@@ -22,7 +22,7 @@ if [ -z "$key" ]; then
 fi
 
 mkdir -p "$vm/run"
-cp "$fc_root/bin/forwarder" "$fc_root/firecracker/guest/vsock-check.sh" "$vm/run/"
+cp "$fc_root/bin/loopback-to-vsock" "$fc_root/firecracker/guest/vsock-check.sh" "$vm/run/"
 
 fc_kernel_fetch
 fc_disk "$vm/work.ext4" 64M run="$vm/run"

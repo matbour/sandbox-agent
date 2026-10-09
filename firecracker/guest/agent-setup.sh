@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest side of firecracker/run-agent.sh, run as root: start the forwarder, install the
+# Guest side of firecracker/run-agent.sh, run as root: start loopback-to-vsock, install the
 # dependencies offline, record a baseline the agent cannot read, run the agent as the `agent`
 # user (agent.sh), then write the diff to out/. Prints "mark <step> <ms since boot>" lines.
 set -u
@@ -10,7 +10,7 @@ mark() { echo "mark $1 $(now)"; }
 mark start
 mkdir -p $w/out
 ip link set lo up
-$w/run/forwarder 2>$w/out/forwarder.log &
+$w/run/loopback-to-vsock 2>$w/out/loopback-to-vsock.log &
 
 cd $w/repo
 bun install --frozen-lockfile --offline --cache-dir $w/cache >$w/out/install.log 2>&1 || echo "install failed"

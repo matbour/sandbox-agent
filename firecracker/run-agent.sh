@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run Claude Code on a task inside a Firecracker microVM with no network device: the model API is
-# reached over vsock through forwarder and egress-proxy (docs/microvm.md), the key stays on the
-# host.
+# reached over vsock through loopback-to-vsock and vsock-to-anthropic (docs/microvm.md), the key
+# stays on the host.
 #
 #   firecracker/run-agent.sh <prompt file> [model]
 #
@@ -26,13 +26,13 @@ input=$fc_root/build/bench/input
 
 vm=$(fc_new agent)
 mkdir -p "$vm/run"
-cp "$fc_root/bin/forwarder" "$fc_root/firecracker/guest/agent-setup.sh" "$fc_root/firecracker/guest/agent.sh" "$vm/run/"
+cp "$fc_root/bin/loopback-to-vsock" "$fc_root/firecracker/guest/agent-setup.sh" "$fc_root/firecracker/guest/agent.sh" "$vm/run/"
 cp "$prompt" "$vm/run/prompt.md"
 echo "$model" >"$vm/run/model"
 
 fc_kernel_fetch
 fc_disk "$vm/work.ext4" 8G repo="$input/repo" cache="$input/cache" run="$vm/run"
-fc_config "$vm" 2 4096 "sh /tmp/w/run/agent-setup.sh"
+fc_config "$vm" 2 8192 "sh /tmp/w/run/agent-setup.sh"
 fc_proxy "$vm" "$key"
 
 start=$(date +%s)

@@ -1,11 +1,11 @@
 #!/bin/sh
-# Guest side of firecracker/vsock-check.sh: start the forwarder, then call the egress proxy twice
+# Guest side of firecracker/vsock-check.sh: start loopback-to-vsock, then call the egress proxy twice
 # from the guest, once on an allowed path and once on a path it must refuse.
 set -u
 w=/tmp/w
 
 ip link set lo up
-$w/run/forwarder 2>/tmp/forwarder.log &
+$w/run/loopback-to-vsock 2>/tmp/loopback-to-vsock.log &
 sleep 0.3
 
 cd /tmp

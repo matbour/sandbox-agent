@@ -22,7 +22,7 @@ milestone W. Until W is done, [architecture.md](../architecture.md) describes wh
 | Binary | Runs where | Holds secrets | Role |
 | --- | --- | --- | --- |
 | `agentd` (manager) | Host | Linear, GitHub | Webhooks and polling, queue, state, sessions, prompt rendering, clone and export, sandbox start, diff and validation, push, PR, checks, overview |
-| `egress-proxy` | Host | Model API keys | Key injection, allowlist, budget, cost accounting (M4). It may start as a part of `agentd`, but the target is a separate process |
+| `egress-proxy` | Host | Model API keys | Key injection, allowlist, budget, cost accounting (M4). It may start as a part of `agentd`, but the target is a separate process. First version: `vsock-to-anthropic` (D41) |
 | `sandbox` | Host, then inside the sandbox | No | The layer 1 runtime (M3): namespaces, cgroup, mounts, Landlock, seccomp, then exec. The AppArmor `userns,` profile attaches to its path |
 | `worker` | Inside the sandbox | No | Runs the setup script and the agent CLI, turns the agent's output into events |
 | `escape` | Inside the sandbox | No | The escape tests ([escape-tests.md](../escape-tests.md)) |

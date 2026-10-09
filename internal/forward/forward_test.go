@@ -11,7 +11,7 @@ import (
 )
 
 // The target reads the whole request until end of file, then answers: this only works if the
-// forwarder passes the client's half-close through.
+// relay passes the client's half-close through.
 func TestRelayHalfClose(t *testing.T) {
 	sock := filepath.Join(t.TempDir(), "target.sock")
 
