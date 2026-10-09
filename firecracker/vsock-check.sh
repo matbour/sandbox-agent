@@ -1,0 +1,36 @@
+#!/bin/sh
+# Check the egress path of a Firecracker guest (docs/microvm.md): a guest with no network device
+# reaches the Anthropic API through forwarder (guest, TCP to vsock) and egress-proxy (host, adds
+# the key). The guest side is guest/vsock-check.sh.
+#
+#   firecracker/vsock-check.sh [key file]
+#
+# Without a key file, a placeholder key is used: the API then answers 401 "invalid x-api-key",
+# which still proves the whole path. A path the proxy does not allow must get 403.
+# Needs `make build` and the amd64 rootfs (scripts/build-rootfs.sh).
+set -eu
+
+. "$(dirname "$0")/lib.sh"
+
+vm=$(fc_new vsock-check)
+
+key=${1:-}
+if [ -z "$key" ]; then
+	key=$vm/placeholder-key
+	echo placeholder >"$key"
+	chmod 600 "$key"
+fi
+
+mkdir -p "$vm/run"
+cp "$fc_root/bin/forwarder" "$fc_root/firecracker/guest/vsock-check.sh" "$vm/run/"
+
+fc_kernel_fetch
+fc_disk "$vm/work.ext4" 64M run="$vm/run"
+fc_config "$vm" 1 512 "sh /tmp/w/run/vsock-check.sh"
+fc_proxy "$vm" "$key"
+fc_run "$vm" 60
+
+echo "guest:"
+grep -a -E '^(messages|files) ' "$vm/console.log" | sed 's/\x1b\[[0-9;]*m//g; s/^/  /'
+echo "proxy:"
+sed 's/^/  /' "$vm/proxy.log"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Inner loop of scripts/bench-install.sh, run inside the sandbox being measured.
+# Inner loop of bench/install.sh, run inside the sandbox being measured.
 #
 #   bench-install-guest.sh <workspace> <runs>
 #

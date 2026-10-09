@@ -19,3 +19,15 @@ to work out, and mark anything not verified as "to verify".
 | [roadmap.md](roadmap.md) | What to do next |
 | [decisions.md](decisions.md) | Why things are the way they are (short records; longer ones under `decision/`) |
 | [open-questions.md](open-questions.md) | What is still undecided or unverified |
+
+## Where the code is
+
+| Directory | What it holds |
+| --- | --- |
+| `cmd/`, `internal/` | Go: `agentd`, `egress-proxy`, `forwarder`, `sandbox` and their packages |
+| `images/` | Dockerfiles of the agent rootfs and the tools container, shared by every runtime ([rootfs.md](rootfs.md)) |
+| `firecracker/` | Everything specific to Firecracker: `lib.sh` (kernel, disks, VM config, proxy, run), the run scripts, and `guest/` for what runs inside the VM ([microvm.md](microvm.md)) |
+| `bench/` | Benchmarks that compare runtimes ([benchmarks.md](benchmarks.md)) |
+| `scripts/` | Repository tooling: rootfs build, commit message checks |
+| `deploy/` | systemd units and examples for the board |
+| `build/` | Ignored. Images, kernels, and one directory per Firecracker run in `build/firecracker/<run>/` |

@@ -6,7 +6,7 @@ compared on fixed workloads from the target repository. The first one is `bun in
 
 ## `bun install`, offline
 
-`scripts/bench-install.sh` measures `bun install --frozen-lockfile --offline` on the target
+`bench/install.sh` measures `bun install --frozen-lockfile --offline` on the target
 repository in each sandbox.
 
 - **Same input**: the repository's HEAD at a fixed commit (`git archive`, no `.git`) and a Bun cache
@@ -17,14 +17,14 @@ repository in each sandbox.
   repository are on the same file system in every sandbox).
 - **Same resources**: 2 CPUs, 4 GiB of memory.
 - **Repeats**: one warm-up install, then 5 measured ones, each from no `node_modules`
-  (`scripts/bench-install-guest.sh`, run inside the sandbox). The time excludes the clean-up and
+  (`bench/install-guest.sh`, run inside the sandbox). The time excludes the clean-up and
   its `sync`.
 
 ```
 scripts/build-rootfs.sh
-scripts/bench-install.sh prepare <path to the target repository>
-scripts/bench-install.sh podman
-scripts/bench-install.sh firecracker
+bench/install.sh prepare <path to the target repository>
+bench/install.sh podman
+bench/install.sh firecracker
 ```
 
 Results are appended to `build/bench/results.tsv` (date, sandbox, commit, run, milliseconds).

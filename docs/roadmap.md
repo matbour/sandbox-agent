@@ -116,7 +116,7 @@ Design in [decision/protocol.md](decision/protocol.md).
 
 - [x] `cmd/egress-proxy` (2026-11-16, D40): Unix socket server, `/anthropic/*` route, key
       injection, exact method and path allowlist, body size limit, request log. Checked from a
-      Firecracker guest over vsock (`scripts/vsock-check.sh`).
+      Firecracker guest over vsock (`firecracker/vsock-check.sh`).
 - [ ] Routes for other model providers, model allowlist, per-job budget and cost accounting, rate limit.
 - [x] `cmd/forwarder` inside the sandbox on `127.0.0.1:8080`, to vsock or a Unix socket
       (2026-11-16).

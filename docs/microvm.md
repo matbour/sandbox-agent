@@ -64,7 +64,7 @@ use it. Unix socket paths are limited to 108 bytes, which rules out deep directo
 
 ### Egress over vsock (verified 2026-11-16, development machine)
 
-`scripts/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
+`firecracker/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
 guest, `forwarder` listens on `127.0.0.1:8080` (after `ip link set lo up`) and relays each
 connection to vsock port 8080 on the host; there, `egress-proxy` listens on `<uds_path>_8080`,
 adds the key and forwards to `api.anthropic.com`. With a placeholder key the API answers 401
