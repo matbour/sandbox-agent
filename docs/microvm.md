@@ -65,11 +65,28 @@ use it. Unix socket paths are limited to 108 bytes, which rules out deep directo
 ### Egress over vsock (verified 2026-11-16, development machine)
 
 `firecracker/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
-guest, `forwarder` listens on `127.0.0.1:8080` (after `ip link set lo up`) and relays each
-connection to vsock port 8080 on the host; there, `egress-proxy` listens on `<uds_path>_8080`,
+guest, `loopback-to-vsock` listens on `127.0.0.1:8080` (after `ip link set lo up`) and relays each
+connection to vsock port 8080 on the host; there, `vsock-to-anthropic` listens on `<uds_path>_8080`,
 adds the key and forwards to `api.anthropic.com`. With a placeholder key the API answers 401
 "invalid x-api-key" (the path works end to end); a path outside the allowlist gets 403 from the
 proxy. Firecracker's CI kernel 6.1.155 has `virtio_vsock` built in.
+
+### Claude Code in the VM (first run, 2026-11-16, development machine)
+
+`firecracker/run-agent.sh` ran Claude Code (Sonnet) on a small refactor-and-test task in the target
+repository, inside a VM with 2 vCPUs, 4 GiB, no network device, egress over vsock: 299 s, $0.23, 11
+turns, 10 API calls (all `POST /v1/messages`, none rejected), a correct-looking two-file diff. The
+API took 31 s of the 299. Most of the rest was `tsc` thrashing at the 4 GiB limit until the
+guest's OOM killer stopped it, twice. The shell printed nothing, so the agent read an empty output
+and reported the type check as clean: the change was never type-checked. Lessons:
+
+- Size the VM for the repository's heaviest check (`tsc` on the front-end app needs more than
+  4 GiB, [benchmarks.md](benchmarks.md)); `run-agent.sh` now gives 8 GiB.
+- A killed command must be visible to the agent. Without swap, an OOM kill is silent in a
+  non-interactive shell; the guest console shows it ("Out of memory: Killed process"). The worker
+  should report OOM kills from the guest as events.
+- The rootfs has no `python3` and no `node`; the agent tried both, lost a turn, and fell back to
+  Bun. Either add them or say so in the prompt.
 
 ## Option A2: Cloud Hypervisor
 

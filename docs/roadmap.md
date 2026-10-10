@@ -114,13 +114,14 @@ Design in [decision/protocol.md](decision/protocol.md).
 
 ## M4: egress proxy
 
-- [x] `cmd/egress-proxy` (2026-11-16, D40): Unix socket server, `/anthropic/*` route, key
+- [x] `cmd/vsock-to-anthropic` (2026-11-16, D40, D41): Unix socket server, `/anthropic/*` route, key
       injection, exact method and path allowlist, body size limit, request log. Checked from a
       Firecracker guest over vsock (`firecracker/vsock-check.sh`).
 - [ ] Routes for other model providers, model allowlist, per-job budget and cost accounting, rate limit.
-- [x] `cmd/forwarder` inside the sandbox on `127.0.0.1:8080`, to vsock or a Unix socket
-      (2026-11-16).
-- [ ] Claude Code runs a real task through it, in Firecracker; list the calls it needs.
+- [x] `cmd/loopback-to-vsock` inside the microVM guest on `127.0.0.1:8080` (2026-11-16). The
+      layer 1 sandbox will need its own loopback-to-Unix-socket relay.
+- [x] Claude Code runs a real task through it, in Firecracker: only `POST /v1/messages` needed
+      (2026-11-16, [microvm.md](microvm.md)).
 - [ ] E-SEC and E-NET-6, E-NET-7 pass.
 
 ## M5: agent run in the layer 1 runtime

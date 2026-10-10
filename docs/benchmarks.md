@@ -42,9 +42,48 @@ goes through the guest kernel and then Firecracker's emulated block device (one 
 single thread on the host), the data is cached twice (guest and host page caches), and the guest
 kernel is older (6.1) than the host's (7.0).
 
+## Checks after a change: lint, type check, tests
+
+`bench/checks.sh` measures what an agent runs to check a change in the front-end app, on the same
+input, offline: `biome check .` at the root (3053 files), `tsc --noEmit` in the app (TypeScript 7,
+the native compiler, started with `bunx --bun`), and `bun test` in the app (2168 tests; 5 fail
+without the app's environment variables, which does not change the time). Each check runs 3 times
+after one offline install; build caches (`*.tsbuildinfo`: the app has `incremental: true`) are
+removed before each run, so every run is cold, as in a fresh sandbox.
+
+```
+bench/checks.sh podman
+bench/checks.sh firecracker
+```
+
+Results go to `build/bench/checks.tsv` (date, sandbox, commit, check, run, milliseconds, exit code).
+
+| Check | Podman | Firecracker | Difference |
+| --- | --- | --- | --- |
+| `biome check .` | 5.15 to 5.27 s | 5.29 to 5.53 s | about +4 % |
+| `tsc --noEmit` | 12.3 to 12.6 s | 12.5 to 16.5 s (first run slowest) | about +10 % |
+| `bun test` | 9.0 to 9.5 s | 9.2 to 9.9 s | about +2 % |
+
+2 CPUs, 8 GiB, no swap; same machine and commit as above, 2026-11-16. On CPU-bound work the VM
+costs little; the file-heavy install is where it costs (+57 %).
+
+Pitfalls met on the way, each of which gave wrong numbers first:
+
+- **`tsc` on this app needs more than 4 GiB** (about 3.9 GB resident when it is killed). With
+  4 GiB the guest's OOM killer stops it (exit code 137). Podman with `--memory 4096m` and no
+  `--memory-swap` let the container swap on the host instead: `tsc` passed in 42 to 53 s, which
+  looked like a slow but working run. The script now gives 8 GiB and sets `--memory-swap` equal to
+  `--memory`.
+- **Incremental build info left in the shared input** made later runs warm (2 s instead of 12 s).
+  The guest loop now removes `*.tsbuildinfo` before each run and at the end.
+- `bunx tsc` without `--bun` needs `node`, which the rootfs does not have. Bun normally provides a
+  `node` shim in `/tmp`; it worked as root in Podman and failed as the `agent` user in the VM (to
+  verify why).
+
 ## To do
 
 - gVisor and Docker Sandboxes on the same input.
 - The same on the board (arm64), once Firecracker runs there.
 - Firecracker with our own kernel, and with the workspace on virtio-fs or a tmpfs instead of a disk.
 - Boot time and memory use next to the install time.
+- Peak memory of each check, so that sandbox sizes are chosen from data.
