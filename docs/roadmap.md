@@ -73,6 +73,38 @@ Design in [decision/protocol.md](decision/protocol.md).
 - [ ] Check on a real session which status Linear shows after each activity type; record it.
 - [ ] A real issue end to end through the worker.
 
+## R: one manager, several runners (D42 to D45, from 2026-11-20)
+
+Design in [decision/runners.md](decision/runners.md). The priority of the project: a Go control
+plane scheduling Firecracker microVMs on an arm64 and an amd64 machine at once. Linear polish, the
+gVisor provider and a second agent backend wait until after the demonstration (M8). Network limits are for
+the next version (N).
+
+- [ ] R0, Firecracker on the board: boot the CI kernel with vCPUs pinned to cores 4-7 (M1). If it
+      does not boot, the board's runner uses `sbx` for the demonstration.
+- [ ] R1, Firecracker provider in Go on the development machine: API client over the Unix socket,
+      jailer, OCI image to a cached ext4 root disk per architecture, workspace disk in and out,
+      worker disk, one tap per microVM with NAT (D44). Passes the conformance suite.
+- [ ] R2, worker: W's remaining items, the task and events across the VM boundary without vsock,
+      the dev token in the guest's environment (D43), and a `fake` agent backend.
+- [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and
+      outbox, secret scan of outputs; waiting for CI becomes a step with a timer. Decide the store
+      (D23 does not fit leases) and the project file format.
+- [ ] R4, runner over HTTPS: `cmd/runnerd`, per-runner tokens, register, lease, heartbeat,
+      cancellation, sequence numbers; `agentd` and `runnerd` on one machine over loopback.
+      `agentd -try` becomes `runnerd -try`. Import test extended (D42).
+- [ ] R5, two machines: decide how a runner reaches the manager (private notes) and the board's
+      network (D44); scheduling by resources and `requires`; two runs at once on arm64 and amd64.
+- [ ] R6, preview and screenshots (D45): Chromium and Playwright in the image for both
+      architectures, the `SCREENSHOTS:` capture step, `artifact` events, upload to Linear and the
+      overview.
+- [ ] R7, failures: lease expiry, runner and manager restarts mid-run, Stop during a run. Each one
+      exercised once and recorded.
+- [ ] R8, fast starts: snapshot and restore per image and architecture, warm pool; measure lease to
+      first guest instruction, restore against cold boot, memory per idle microVM, on both machines
+      ([benchmarks.md](benchmarks.md)).
+- [ ] E-RUNNER tests ([escape-tests.md](escape-tests.md)) pass.
+
 ## P: sandbox providers (from 2026-11-13)
 
 - [x] `internal/sandbox` interface, sbx moved behind it, conformance suite; sbx passes (D30).
@@ -114,6 +146,9 @@ Design in [decision/protocol.md](decision/protocol.md).
 
 ## M4: egress proxy
 
+Shelved for the development phase (D44): the code stays, the flow does not use it. It returns
+with milestone N.
+
 - [x] `cmd/vsock-to-anthropic` (2026-11-16, D40, D41): Unix socket server, `/anthropic/*` route, key
       injection, exact method and path allowlist, body size limit, request log. Checked from a
       Firecracker guest over vsock (`firecracker/vsock-check.sh`).
@@ -145,6 +180,15 @@ tracked there (E-HOOK, S3) and here:
 
 - [ ] Run the agent inside Firecracker (vsock for proxy and control) or gVisor.
 - [ ] Re-run the escape suite; fill the comparison table in [microvm.md](microvm.md).
+
+## N: network limits (next version)
+
+- [ ] Bring back the egress proxy (M4) with the model key, so no credential enters the guest; drop
+      the development token (D43) and revoke it.
+- [ ] No LAN, no host: a `CONNECT` proxy with a per-project host allowlist, or no network device at
+      all for projects that need none.
+- [ ] Build credentials through proxy routes with header injection.
+- [ ] E-NET and E-SEC pass again.
 
 ## M8: write-up
 

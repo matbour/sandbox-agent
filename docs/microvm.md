@@ -36,12 +36,29 @@ Goal: one microVM boots to a shell on the board.
 ### Design once it works
 
 - **No network device.** The guest talks to the host over vsock only: one port for the egress proxy,
-  one for control (start the agent, stream logs, fetch the output).
+  one for control (start the agent, stream logs, fetch the output). Superseded for the development
+  phase by D44: the guest gets a tap on a bridge with NAT (see [Network](#network-development-phase-d44)).
+  The vsock work below stays valid for the next version.
 - Rootfs: the layer 1 image converted to ext4, read-only, plus a second writable disk for the
   workspace (or virtio-fs later).
 - Run the Firecracker process itself inside a layer 1 sandbox (no network, minimal mounts, seccomp,
   cgroup), like Firecracker's `jailer` does. The `jailer` needs root; our runtime can play its role.
 - Snapshot and restore for fast starts is a stretch goal.
+
+### Network (development phase, D44)
+
+Laid out like Docker's default bridge, with taps instead of veths since Firecracker only takes taps.
+`deploy/network/fc-net.sh`, run as root once per machine by the `sandbox-agent-net` system unit:
+
+- bridge `fc0` with the gateway `10.230.0.1/24` (outside Docker's default address pools);
+- persistent taps `fc-tap0` to `fc-tapN`, owned by the account that runs Firecracker, attached as
+  isolated bridge ports (guests cannot reach each other);
+- IP forwarding and a masquerade rule for the subnet; the accept rules go into `DOCKER-USER` when
+  Docker is installed, because Docker sets the `FORWARD` policy to `DROP`.
+
+Guest N uses `fc-tapN` and `10.230.0.(10+N)`, set with `ip=` on the kernel command line (needs
+`CONFIG_IP_PNP`, to verify for the CI kernel), and a public resolver in `/etc/resolv.conf`. No
+filtering: the guest reaches the LAN and the host. Not installed on any machine yet.
 
 ### vsock, as Firecracker does it
 

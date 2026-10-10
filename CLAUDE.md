@@ -64,7 +64,9 @@ target. Details of both are in the private notes.
 
 ## Rules
 
-- No secret ever enters the sandbox. API keys and GitHub tokens live on the host only.
+- No secret ever enters the sandbox. API keys and GitHub tokens live on the host only. One
+  exception, for the development phase only: the Claude subscription token (D43). GitHub and
+  Linear credentials never enter it.
 - Every isolation feature comes with an escape test ([docs/escape-tests.md](docs/escape-tests.md)).
 - Record decisions in [docs/decisions.md](docs/decisions.md); longer records go in `docs/decision/`
   with a short entry in `decisions.md` that links to them.

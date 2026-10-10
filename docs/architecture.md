@@ -3,7 +3,8 @@
 This page describes what runs today, with Docker Sandboxes as the only provider. The target split
 into a manager and a worker that speak an event protocol is in
 [decision/protocol.md](decision/protocol.md) (D33). Its steps are milestone W in the
-[roadmap](roadmap.md).
+[roadmap](roadmap.md). The global target, one manager and several runners on several machines, is
+in [decision/runners.md](decision/runners.md) (D42 to D45), milestone R.
 
 ## Flow
 
@@ -36,8 +37,8 @@ Mentions without a pull request start a research run that changes nothing (D27).
 | `sbx` proxy | Host | Anthropic key (sbx secret store) | Injects the key and applies the network policy (D14) |
 | Agent | Inside the VM | No | Claude Code, non-interactive ([agents.md](agents.md)) |
 | `bin/sandbox` | — | — | Stub. Becomes the layer 1 runtime (M3, [sandbox.md](sandbox.md)) |
-| `vsock-to-anthropic` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40, D41). Used by the Firecracker spike, not by `agentd` yet |
-| `loopback-to-vsock` | Inside the microVM | No | Relays `127.0.0.1:8080` to the host over vsock |
+| `vsock-to-anthropic` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40, D41). Shelved for the development phase (D44) |
+| `loopback-to-vsock` | Inside the microVM | No | Relays `127.0.0.1:8080` to the host over vsock. Shelved (D44) |
 
 The target components (manager, egress proxy, runtime, worker) are listed in
 [decision/protocol.md](decision/protocol.md).
@@ -47,6 +48,10 @@ The target components (manager, egress proxy, runtime, worker) are listed in
 Today: the `sbx` proxy. The global policy is `allow-all` minus loopback, private ranges and cloud
 metadata (D14). Package registries and GitHub are reachable. This is an accepted risk until the
 service is useful, and the next steps are to deny GitHub writes and then move to an allowlist.
+
+Development phase (D44): Firecracker guests get a tap on a bridge with NAT (`deploy/network/`),
+with no filtering, and Claude Code reaches `api.anthropic.com` directly with the subscription token
+(D43). The proxy described next is shelved until the next version (roadmap, milestone N).
 
 Target, the egress proxy of M4: the sandbox has no network interface except loopback. The proxy is
 reached through a Unix socket bind-mounted into the sandbox (layer 1), or through vsock (microVM).

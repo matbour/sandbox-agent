@@ -22,13 +22,18 @@ worker. See [decision/protocol.md](decision/protocol.md).
   --no-session-persistence --max-turns <n> --max-budget-usd <n> --model <model>`. Skipping
   permission prompts is fine because the sandbox is the permission boundary. The worker will use
   `--output-format stream-json` to emit `action` events while the agent works.
-- Key: with `sbx`, the `sbx` proxy injects it (no key in the VM). With the egress proxy (M4),
-  `ANTHROPIC_BASE_URL` will point at the proxy route.
+- Key: with `sbx`, the `sbx` proxy injects it (no key in the VM). In Firecracker during the
+  development phase (D43, D44), Claude Code authenticates with the owner's subscription through
+  `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) and calls `api.anthropic.com` directly. With
+  the egress proxy (next version), `ANTHROPIC_BASE_URL` will point at the proxy route and an API
+  key will be injected there. A subscription token is never injected by a proxy: the terms forbid
+  intermediating it.
 - Claude Code has its own optional sandboxing; the outer sandbox replaces it here.
 - Model: `--model` is always passed (D16, D20): Sonnet for `agent`, or the model named by an
   explicit label (`agent-haiku`, `agent-sonnet`, `agent-opus`, `agent-fable`). Without `--model`,
   the `sbx` image runs Opus.
-- Billing: API credits of the owner's Anthropic organisation. Create a dedicated API key for this
+- Billing: the owner's subscription during the development phase (D43); otherwise API credits of
+  the owner's Anthropic organisation. Create a dedicated API key for this
   project, with a spend limit if the Console allows it.
 - Installed in the `sbx` `claude` image (Claude Code 2.1.322 on 2026-11-13). For the other
   providers, the image or rootfs must provide it: to verify how it installs on arm64 Linux, and how

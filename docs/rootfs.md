@@ -78,6 +78,11 @@ A first version on Ubuntu 24.04 with Node.js 24, Python and Claude Code installe
 
 - arm64 build on the amd64 machine needs QEMU user emulation (`qemu-user-static` and binfmt); CI
   builds it natively instead. Not built locally yet.
-- Our own guest kernel (no virtio-net) instead of Firecracker's CI kernel.
-- A guest init in Go that serves control over vsock, instead of `init=/bin/sh`.
+- Our own guest kernel instead of Firecracker's CI kernel, with virtio-net and `CONFIG_IP_PNP`
+  for the development network (D44).
+- `/etc/resolv.conf` pointing to a public resolver (D44): the host's `127.0.0.53` is not reachable
+  from a guest.
+- Chromium, fonts and Playwright for both architectures, for preview and screenshots (D45).
+- A guest init in Go that serves control to the runner (over vsock or the tap, R2), instead of
+  `init=/bin/sh`.
 - A second, writable disk for the workspace.

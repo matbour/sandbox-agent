@@ -12,7 +12,8 @@ repository in each sandbox.
 - **Same input**: the repository's HEAD at a fixed commit (`git archive`, no `.git`) and a Bun cache
   filled once beforehand (`prepare`, the only step with network).
 - **Offline**: a download would mostly measure the registry and the internet link, and the
-  Firecracker guest has no network by design. What remains is CPU and file system work: about 3000
+  Firecracker guest had no network when this was written (it gets one in the development phase,
+  D44). What remains is CPU and file system work: about 3000
   packages written into `node_modules`, hard-linked from the cache (Bun's default backend; cache and
   repository are on the same file system in every sandbox).
 - **Same resources**: 2 CPUs, 4 GiB of memory.

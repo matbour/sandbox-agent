@@ -15,6 +15,7 @@ to work out, and mark anything not verified as "to verify".
 | [benchmarks.md](benchmarks.md) | Sandbox benchmarks: `bun install` offline, per runtime |
 | [agents.md](agents.md) | Agent backends, how the agent is run today, the prompt |
 | [decision/protocol.md](decision/protocol.md) | Manager, worker and binaries; the task and event protocol; session state machine (D33) |
+| [decision/runners.md](decision/runners.md) | Global architecture: one manager, several runners on several machines; configuration, secrets, runner protocol, scheduling, failures, Firecracker in Go (D42 to D45) |
 | [escape-tests.md](escape-tests.md) | The list of escape tests and their expected results |
 | [roadmap.md](roadmap.md) | What to do next |
 | [decisions.md](decisions.md) | Why things are the way they are (short records; longer ones under `decision/`) |
@@ -24,10 +25,10 @@ to work out, and mark anything not verified as "to verify".
 
 | Directory | What it holds |
 | --- | --- |
-| `cmd/`, `internal/` | Go: `agentd`, `vsock-to-anthropic`, `loopback-to-vsock`, `sandbox` and their packages |
+| `cmd/`, `internal/` | Go: `agentd`, `sandbox`, and `vsock-to-anthropic` and `loopback-to-vsock` (shelved, D44), with their packages |
 | `images/` | Dockerfiles of the agent rootfs and the tools container, shared by every runtime ([rootfs.md](rootfs.md)) |
 | `firecracker/` | Everything specific to Firecracker: `lib.sh` (kernel, disks, VM config, proxy, run), the run scripts, and `guest/` for what runs inside the VM ([microvm.md](microvm.md)) |
 | `bench/` | Benchmarks that compare runtimes ([benchmarks.md](benchmarks.md)) |
 | `scripts/` | Repository tooling: rootfs build, commit message checks |
-| `deploy/` | systemd units and examples for the board |
+| `deploy/` | systemd units and examples for the board; `network/`: bridge and NAT for Firecracker guests (D44) |
 | `build/` | Ignored. Images, kernels, and one directory per Firecracker run in `build/firecracker/<run>/` |

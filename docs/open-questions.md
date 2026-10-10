@@ -27,7 +27,7 @@ Move an item to [decisions.md](decisions.md) once settled.
 - Claude Code's flags are settled ([agents.md](agents.md)), and so are the models and their cost
   (D16, D20: $0.20 for a first real issue with Sonnet). Still open for any second backend:
   non-interactive flags and arm64 install.
-- Can both CLIs work with a placeholder API key and a custom base URL (egress proxy, M4)? Any other
+- Can both CLIs work with a placeholder API key and a custom base URL (egress proxy, next version)? Any other
   endpoint they call at startup (telemetry, update checks) that must be disabled or routed?
 
 ## Dependencies
@@ -54,6 +54,19 @@ most convenient:
 - Triggers are settled: label (D15, D20), mention and delegation through agent sessions (D25, D27).
 - Which session status Linear shows after each activity type. The guide only says it follows the
   last activity ([decision/protocol.md](decision/protocol.md)).
+
+## Runners (D42 to D45)
+
+Details and the proposed answers are in [decision/runners.md](decision/runners.md#open).
+
+- The manager's store, now that `state.json` (D23) must hold leases and concurrent runs.
+- How the worker's task and events cross the VM boundary without vsock.
+- Firecracker on the board, and whether the board accepts a tap and NAT (D44).
+- How a runner on another machine reaches the manager (LAN, VPN, tunnel with a service token).
+- Time to serve a base tree of the target monorepo as a tar (to measure).
+- How to revoke a `claude setup-token` token (D43).
+- Playwright's arm64 Chromium on the board; GitHub rendering of screenshots linked from a branch
+  (D45).
 
 ## Protocol (D33)
 

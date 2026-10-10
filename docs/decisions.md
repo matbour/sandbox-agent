@@ -446,3 +446,96 @@ layer 1 sandbox gets its own relay when it needs one. The Go packages keep their
 (`internal/forward`, `internal/egress`), and a second provider route will either be a new command
 or a rename of `vsock-to-anthropic`.
 
+
+## D42. One manager, several runners (2026-11-20)
+
+Full record: [decision/runners.md](decision/runners.md). Proposed, not implemented (milestone R).
+In short:
+
+- Jobs must run on several machines at once (the board and the development machine first). `agentd`
+  stays the single manager: sources, sessions, scheduling, Linear and GitHub. A new `runnerd` runs
+  on each machine that runs jobs, holds the sandbox providers (D30 moves there) and the egress proxy,
+  and never holds Linear or GitHub credentials.
+- Runners dial out to the manager over HTTPS with a per-runner token, lease runs, stream the D33
+  events and return a change set computed against the base tree the manager served without `.git`.
+  The manager applies it to its own clean clone and validates it as before (D5).
+- A session is made of durable, idempotent steps in the manager, so a restart resumes it and waiting
+  for CI holds no runner. A run is one worker in one sandbox on one runner.
+- One machine runs the same design over loopback, with no in-process shortcut.
+- The worker, the task, the events and the session state machine of D33 are unchanged. The two
+  points D33 left open are settled: one runner process per machine, and `Tracker` and `Forge`
+  interfaces in the session engine.
+
+## D43. Development phase: the Claude subscription token enters the guest (2026-11-20)
+
+An exception to "no secret in the sandbox", for the development phase only. Runs authenticate
+Claude Code with the owner's subscription through `CLAUDE_CODE_OAUTH_TOKEN` (made by
+`claude setup-token`, valid one year), the documented route for headless use of the unmodified
+binary. Having a host proxy hold the token and inject it was ruled out: the terms forbid
+intermediating subscription credentials, and the system will later serve users who must bring
+their own key or subscription.
+
+Conditions:
+
+- The token is a project secret on the manager, named in the project's `secret_env`, sent to the
+  runner in the run spec, set in the guest's environment, and never logged or written to disk by
+  the runner.
+- Only the owner's Linear workspace and repositories are configured while it is in use.
+- The manager rejects any change set, event or PR text that contains the value. Screenshots cannot
+  be scanned (D45), so they are published only to private places.
+- E-SEC is reported as "expected to fail: development token present", not skipped.
+- The token is revoked and replaced at the end of the phase, or after any suspicious run (how to
+  revoke one is to verify).
+
+With an open network (D44), any run can exfiltrate the token. That is the accepted cost of the
+phase.
+
+## D44. Development phase: open network, egress proxy shelved (2026-11-20)
+
+Supersedes, for the development phase, D6 (no network device) and the M4 plan. Network limits are
+for a later version.
+
+- Each microVM gets a tap device and reaches the internet through NAT on the runner host. No
+  filtering: the guest reaches the internet, the LAN and the host. Claude Code talks to
+  `api.anthropic.com` directly with the token of D43.
+- The layout is Docker's default bridge, with taps instead of veths (Firecracker only takes taps):
+  a bridge `fc0` holding the gateway of a /24 (`10.230.0.0/24` by default, outside Docker's default
+  address pools), one persistent tap per concurrent microVM attached to it as an isolated port (no
+  guest-to-guest traffic), IP forwarding, and a masquerade rule for the subnet. Docker sets the
+  `FORWARD` policy to `DROP`, so the accept rules go into `DOCKER-USER`, the chain Docker leaves to
+  users and jumps to before its own rules and ufw's.
+- `deploy/network/fc-net.sh` does it, run as root by the `sandbox-agent-net` system unit, which the
+  machine's owner installs once. The taps belong to the account that runs Firecracker, so
+  `runnerd` needs no privilege: guest N gets `fc-tapN` and `10.230.0.(10+N)`, gateway `.1`, passed
+  on the kernel command line (`ip=`, needs `CONFIG_IP_PNP` in the guest kernel, to verify for the
+  CI kernel). The guest's `/etc/resolv.conf` points to a public resolver, since the host's
+  `127.0.0.53` is not reachable from it. Whether the rules survive a Docker restart is to verify.
+- On the board this changes the firewall next to Docker's, which this project does not do without
+  the owner's agreement; it is decided when the board's runner joins, and until then the board's
+  runner can use `sbx`.
+- `vsock-to-anthropic`, `loopback-to-vsock` and their packages stay in the tree but are not part of
+  the flow. Cost and budget are self-reported by Claude Code until the proxy returns.
+- E-NET is reported as "expected to fail: open network".
+
+The proxy and network limits (allowlist through a `CONNECT` proxy, no LAN, no host) come back before
+anyone else uses the system.
+
+## D45. Preview and screenshots (2026-11-20)
+
+A project can declare a dev server (`preview`: start command, port, readiness path, timeout,
+non-secret environment, viewport, page limit). The image carries Chromium and Playwright for both
+architectures (arm64 Chromium through Playwright, to verify on the board).
+
+- While it works, the agent can start the dev server and drive a headless browser through a tool
+  (Playwright MCP), to check its own change.
+- After the agent ends, the worker captures the screenshots itself: the agent lists paths in its
+  final message (`SCREENSHOTS:`), the worker starts the dev server, waits until it is ready, opens
+  each path on `localhost` only, takes a full-page PNG and stops the server. The agent chooses what
+  to show, not how it is captured.
+- Screenshots travel as `artifact` events and files in the run's result, separate from the change
+  set, and are never committed. The manager enforces count, size and dimension limits and decodes
+  and re-encodes every PNG with `image/png`.
+- They are published to Linear (file upload) and the overview first. GitHub has no API to attach
+  images to a PR; linking them from a separate branch is to verify.
+- Chromium runs with `--no-sandbox` in the guest: the microVM is the boundary. Rendering is in
+  software; there is no GPU in the guest.

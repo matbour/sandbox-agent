@@ -97,7 +97,9 @@ Ours will live in `deploy/apparmor/` (see [roadmap](roadmap.md), M2). Installing
 
 It also runs other self-hosted services in Docker, and their administration credentials live on it.
 A sandbox escape, or even LAN access from a sandbox, would expose them. See
-[threat-model.md](threat-model.md). This project never modifies Docker or the other services.
+[threat-model.md](threat-model.md). This project never modifies Docker or the other services. The board is the manager and the arm64
+runner (D42); the network for its Firecracker guests (D44) would add firewall rules next to
+Docker's, so it waits for the owner's agreement.
 
 ## Ingress
 
@@ -130,7 +132,11 @@ a GPU. Its hardware and access are in the private notes. Toolchain, installed in
 | Cloud Hypervisor, `ch-remote` | v54.1 (static) | `~/.local/opt/cloud-hypervisor-<version>`, linked from `~/.local/bin` |
 
 To upgrade one, unpack the new release into its own `~/.local/opt/<tool>-<version>` and repoint the
-link. The board has none of the three yet (see [Toolchain](#toolchain)).
+link.
+
+It is the amd64 runner of the demonstration (D42). Docker is installed on it (the development
+account is not in `docker`), so the network for Firecracker guests (`deploy/network/`, D44) puts
+its accept rules in Docker's `DOCKER-USER` chain. Not installed yet. The board has none of the three yet (see [Toolchain](#toolchain)).
 
 The same two host settings as on the board stand in the way: the development account must be in
 `kvm` for Firecracker and Cloud Hypervisor to open `/dev/kvm`, and unprivileged user namespaces are

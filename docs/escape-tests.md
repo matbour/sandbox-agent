@@ -18,6 +18,9 @@ the README, one column per layer (layer 1, layer 1 + gVisor, layer 1 + Firecrack
 
 ## Network (E-NET)
 
+During the development phase the network is open (D44): these tests are reported as expected to
+fail, not skipped.
+
 | ID | Attempt | Expected |
 | --- | --- | --- |
 | E-NET-1 | List interfaces | Only `lo` |
@@ -29,6 +32,10 @@ the README, one column per layer (layer 1, layer 1 + gVisor, layer 1 + Firecrack
 | E-NET-7 | Call a model not on the allowlist through the proxy | Rejected |
 
 ## Secrets (E-SEC)
+
+During the development phase the guest holds the Claude subscription token (D43): E-SEC-1 and
+E-SEC-3 are reported as expected to fail. The manager's scan for that value in change sets, events
+and PR text is tested instead.
 
 | ID | Attempt | Expected |
 | --- | --- | --- |
@@ -92,6 +99,22 @@ The input is a recorded or forged worker stdout (D33, [decision/protocol.md](dec
 | E-PROTO-5 | Events after a terminal event, or two terminal events | Everything after the first terminal event is ignored |
 | E-PROTO-6 | Stream ends without a terminal event, or the worker exits non-zero after `done` | Counted as `fail` |
 | E-PROTO-7 | Invalid JSON, or unknown fields | The line is dropped and logged, the run continues |
+
+## Runner (E-RUNNER), run against the manager's runner API
+
+The input is a forged runner, with a valid or invalid token (D42,
+[decision/runners.md](decision/runners.md)). The E-PROTO tests also apply to the events a runner
+relays.
+
+| ID | Runner request | Expected |
+| --- | --- | --- |
+| E-RUNNER-1 | No token, a revoked token, or plain HTTP from another host | Refused |
+| E-RUNNER-2 | `input`, `events`, `result` or `heartbeat` for another runner's lease | Refused, nothing recorded |
+| E-RUNNER-3 | Calls for an expired or finished lease | Refused, late events dropped |
+| E-RUNNER-4 | A change set with `..`, absolute paths, `.git/`, symlinks, denied paths or over the limits | Rejected by the manager's validator, as E-OUT |
+| E-RUNNER-5 | A change set or event stream over the size limit | Upload cut off, the run fails |
+| E-RUNNER-6 | Replayed `events` with the same sequence numbers | Counted once |
+| E-RUNNER-7 | `register` with an unknown protocol version | Refused |
 
 ## Webhook (E-HOOK), run against the receiver
 

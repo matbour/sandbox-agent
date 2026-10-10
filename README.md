@@ -3,7 +3,9 @@
 A self-hosted coding agent that turns Linear issues into GitHub pull requests, running untrusted code
 inside a sandbox built from Linux primitives.
 
-Status: work in progress.
+Status: work in progress. The target architecture is one manager scheduling agent runs onto
+Firecracker microVMs on several machines of different architectures
+([docs/decision/runners.md](docs/decision/runners.md)).
 
 ## Goal
 
@@ -21,6 +23,9 @@ sandbox there is no Linear, GitHub or Git, only a task and the workspace
   key. GitHub credentials stay on the host.
 - **Deny by default**: no network except the proxy, no access to the LAN, bounded CPU, memory, PIDs
   and disk.
+- **Development phase** (D43, D44): two of these principles are relaxed on purpose until the next
+  version. The guest holds the Claude subscription token, and it reaches the whole network. Only
+  the owner's workspace and repositories are configured meanwhile.
 - **Defense in depth**: namespaces, cgroups v2, seccomp-bpf, Landlock and dropped capabilities first,
   then a microVM (Firecracker) or gVisor as a second layer.
 - **Every protection has a test** that attempts the corresponding escape.

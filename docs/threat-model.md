@@ -29,10 +29,18 @@ that code can reach.
 ```
 Internet ─▶ [Cloudflare] ─▶ receiver (host)            boundary A: signature + timestamp
 host ─▶ sandbox                                         boundary B: namespaces, cgroups, filters, VM
-sandbox ─▶ egress proxy (host)                          boundary C: one socket, allowlist, budget
+sandbox ─▶ egress proxy (host)                          boundary C: one socket, allowlist, budget (shelved, D44)
 sandbox output ─▶ manager (host)                        boundary D: workspace and events are hostile input
 host ─▶ GitHub (branch, draft PR) ─▶ CI ─▶ human merge  boundary E: review before merge
+runner (another host) ─▶ manager                        boundary F: runner token, leases, output is hostile input (D42)
 ```
+
+## Development phase
+
+Until network limits return, two mitigations below are off on purpose: the guest holds the Claude
+subscription token (D43) and reaches the whole network, LAN and host included (D44). A
+prompt-injected run can therefore exfiltrate the token and probe the LAN. Only the owner's
+workspace and repositories are configured meanwhile, and the token is rotated at the end.
 
 ## Threats and mitigations
 

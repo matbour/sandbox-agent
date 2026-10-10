@@ -22,13 +22,13 @@ milestone W. Until W is done, [architecture.md](../architecture.md) describes wh
 | Binary | Runs where | Holds secrets | Role |
 | --- | --- | --- | --- |
 | `agentd` (manager) | Host | Linear, GitHub | Webhooks and polling, queue, state, sessions, prompt rendering, clone and export, sandbox start, diff and validation, push, PR, checks, overview |
-| `egress-proxy` | Host | Model API keys | Key injection, allowlist, budget, cost accounting (M4). It may start as a part of `agentd`, but the target is a separate process. First version: `vsock-to-anthropic` (D41) |
+| `egress-proxy` | Host | Model API keys | Key injection, allowlist, budget, cost accounting (M4). It may start as a part of `agentd`, but the target is a separate process. First version: `vsock-to-anthropic` (D41). Shelved for the development phase (D44) |
 | `sandbox` | Host, then inside the sandbox | No | The layer 1 runtime (M3): namespaces, cgroup, mounts, Landlock, seccomp, then exec. The AppArmor `userns,` profile attaches to its path |
 | `worker` | Inside the sandbox | No | Runs the setup script and the agent CLI, turns the agent's output into events |
 | `escape` | Inside the sandbox | No | The escape tests ([escape-tests.md](../escape-tests.md)) |
 
 Providers (`internal/sandbox/sbx`, `gvisor`, `native`) are not binaries. They are packages compiled
-into `agentd` and selected through the registry (D30). `native` runs the `sandbox` binary, `gvisor`
+into `agentd` (into `runnerd` from D42 on) and selected through the registry (D30). `native` runs the `sandbox` binary, `gvisor`
 runs `runsc`, and `sbx` runs `sbx`.
 
 Hardening layers are not providers. seccomp and Landlock are applied by the `sandbox` runtime
@@ -76,6 +76,7 @@ Output, one JSON object per line on stdout. Each has a `kind`:
 | `ask` | `question`, `title`, `body` (the partial change can still be reviewed) | Yes |
 | `done` | `title`, `body`, `cost_usd`, `turns` | Yes |
 | `fail` | `reason`, `cost_usd`, `turns` | Yes |
+| `artifact` | `name`, `kind` (`screenshot`), `caption`; the file comes with the run's result (D45) | No |
 
 The last line must be a terminal event. A run that ends without one, or exits non-zero after a
 `done`, counts as `fail`. The workspace is the only other output. The manager computes the diff
@@ -177,8 +178,9 @@ The worker is a static `linux/arm64` binary (`CGO_ENABLED=0`), so it runs in any
 
 ## Not decided here
 
-- A separate host process per job. One job at a time on one board does not need it. The contract is
+- A separate host process per job. One job at a time on one board does not need it. Settled by
+  D42: one runner process per machine ([runners.md](runners.md)), several runs per runner. The contract is
   files and streams, so a job runner process, or a worker on another machine, can be added later.
-- Interfaces for the tracker and the forge. `internal/job` keeps calling Linear and GitHub directly
+- Interfaces for the tracker and the forge (settled by D42: the session engine uses them). `internal/job` keeps calling Linear and GitHub directly
   until a second tracker or forge exists.
 - A second agent backend. The `agent` field is there for it.
