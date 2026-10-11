@@ -56,10 +56,17 @@ Laid out like Docker's default bridge, with taps instead of veths since Firecrac
 - IP forwarding and a masquerade rule for the subnet; the accept rules go into `DOCKER-USER` when
   Docker is installed, because Docker sets the `FORWARD` policy to `DROP`.
 
-Guest N uses `fc-tapN` and `10.230.0.(10+N)`, set with `ip=` on the kernel command line (needs
-`CONFIG_IP_PNP`, to verify for the CI kernel), and a public resolver in `/etc/resolv.conf`. No
-filtering: the guest reaches the LAN and the host. Installed on the development machine on
-2026-11-20; no guest has used it yet.
+Guest N uses `fc-tapN` and `10.230.0.(10+N)`, set with `ip=` on the kernel command line, and a
+public resolver in `/etc/resolv.conf`. No filtering: the guest reaches the LAN and the host.
+Installed on the development machine on 2026-11-20.
+
+Verified on 2026-11-20 (development machine, `firecracker/net-check.sh`, with Docker installed on
+the host): Firecracker's CI kernel 6.1.155 applies `ip=` (it has `CONFIG_IP_PNP`); the guest
+pings the gateway, resolves `api.anthropic.com` through 1.1.1.1 and gets an HTTPS answer from it,
+on `fc-tap0` and `fc-tap1`. So the `DOCKER-USER` and NAT rules let the traffic through. The
+agent rootfs has no `/etc/resolv.conf`; `lib.sh` copies `/etc` to a tmpfs and adds one until the
+image ships it. `FC_NET=<N>` in `lib.sh` turns the network device on; without it, guests have
+none, as before.
 
 ### vsock, as Firecracker does it
 

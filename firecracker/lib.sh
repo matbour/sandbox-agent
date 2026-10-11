@@ -2,8 +2,9 @@
 # scripts in firecracker/ and bench/; not run on its own.
 #
 # Every VM has the same shape: the agent rootfs as a read-only root disk, one writable work disk
-# mounted at /tmp/w in the guest, no network device, and an optional vsock device whose port 8080
-# leads to vsock-to-anthropic. The guest's init is a shell command (no init system yet): it mounts
+# mounted at /tmp/w in the guest, a vsock device whose port 8080 leads to vsock-to-anthropic, and
+# no network device unless FC_NET=<N> is set: then the guest gets tap fc-tap<N> on the host bridge
+# (deploy/network/, D44) and the address 10.230.0.(10+N). The guest's init is a shell command (no init system yet): it mounts
 # /proc, a tmpfs on /tmp and the work disk, then runs the given command.
 #
 # Run directories live in build/firecracker/<name>/. Unix socket paths are limited to 108 bytes,
@@ -57,20 +58,33 @@ fc_disk() {
 # <run dir>/work.ext4 and the vsock device <run dir>/v.sock.
 fc_config() {
 	dir=$1
-	init="mount -t proc proc /proc; mount -t tmpfs tmpfs /tmp; mkdir -p /tmp/w; mount /dev/vdb /tmp/w; export HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin:/sbin; $4"
+	init="mkdir -p /tmp/w; mount /dev/vdb /tmp/w; export HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin:/sbin; $4"
+
+	ipargs=""
+	net=""
+	if [ -n "${FC_NET:-}" ]; then
+		gw=10.230.0.1
+		addr=10.230.0.$((10 + FC_NET))
+		ipargs=" ip=$addr::$gw:255.255.255.0::eth0:off"
+
+		# The rootfs has no /etc/resolv.conf and is read-only: copy /etc to a tmpfs and add one.
+		init="mkdir /tmp/etc; cp -a /etc/. /tmp/etc/; echo nameserver 1.1.1.1 >/tmp/etc/resolv.conf; mount --bind /tmp/etc /etc; $init"
+		net=$(printf ',\n  "network-interfaces": [{"iface_id": "eth0", "host_dev_name": "fc-tap%s", "guest_mac": "06:00:0a:e6:00:%02x"}]' "$FC_NET" "$((10 + FC_NET))")
+	fi
+	init="mount -t proc proc /proc; mount -t tmpfs tmpfs /tmp; $init"
 
 	cat >"$dir/vm.json" <<EOF
 {
   "boot-source": {
     "kernel_image_path": "$fc_kernel",
-    "boot_args": "console=ttyS0 reboot=k panic=1 ro quiet init=/bin/sh -- -c \"$init\""
+    "boot_args": "console=ttyS0 reboot=k panic=1 ro quiet$ipargs init=/bin/sh -- -c \"$init\""
   },
   "drives": [
     {"drive_id": "rootfs", "path_on_host": "$fc_rootfs", "is_root_device": true, "is_read_only": true},
     {"drive_id": "work", "path_on_host": "$dir/work.ext4", "is_root_device": false, "is_read_only": false}
   ],
   "machine-config": {"vcpu_count": $2, "mem_size_mib": $3},
-  "vsock": {"guest_cid": 3, "uds_path": "$dir/v.sock"}
+  "vsock": {"guest_cid": 3, "uds_path": "$dir/v.sock"}$net
 }
 EOF
 }

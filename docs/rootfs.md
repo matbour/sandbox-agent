@@ -81,7 +81,7 @@ A first version on Ubuntu 24.04 with Node.js 24, Python and Claude Code installe
 - Our own guest kernel instead of Firecracker's CI kernel, with virtio-net and `CONFIG_IP_PNP`
   for the development network (D44).
 - `/etc/resolv.conf` pointing to a public resolver (D44): the host's `127.0.0.53` is not reachable
-  from a guest.
+  from a guest. The image has none today; `firecracker/lib.sh` works around it at boot.
 - Chromium, fonts and Playwright for both architectures, for preview and screenshots (D45).
 - A guest init in Go that serves control to the runner (over vsock or the tap, R2), instead of
   `init=/bin/sh`.

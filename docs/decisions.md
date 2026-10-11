@@ -508,7 +508,7 @@ for a later version.
   machine's owner installs once with `sudo deploy/network/install.sh`. The taps belong to the
   account that runs Firecracker, so `runnerd` needs no privilege: guest N gets `fc-tapN` and
   `10.230.0.(10+N)`, gateway `.1`, passed on the kernel command line (`ip=`, needs `CONFIG_IP_PNP`
-  in the guest kernel, to verify for the CI kernel). The guest's `/etc/resolv.conf` points to a public resolver, since the host's
+  in the guest kernel; Firecracker's CI kernel has it, verified 2026-11-20). The guest's `/etc/resolv.conf` points to a public resolver, since the host's
   `127.0.0.53` is not reachable from it. Whether the rules survive a Docker restart is to verify.
 - On the board this changes the firewall next to Docker's, which this project does not do without
   the owner's agreement; it is decided when the board's runner joins, and until then the board's
