@@ -136,7 +136,7 @@ link.
 
 It is the amd64 runner of the demonstration (D42). Docker is installed on it (the development
 account is not in `docker`), so the network for Firecracker guests (`deploy/network/`, D44) puts
-its accept rules in Docker's `DOCKER-USER` chain. Not installed yet. The board has none of the three yet (see [Toolchain](#toolchain)).
+its accept rules in Docker's `DOCKER-USER` chain. Installed on 2026-11-20. The board has none of the three yet (see [Toolchain](#toolchain)).
 
 The same two host settings as on the board stand in the way: the development account must be in
 `kvm` for Firecracker and Cloud Hypervisor to open `/dev/kvm`, and unprivileged user namespaces are

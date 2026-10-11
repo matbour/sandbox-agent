@@ -58,7 +58,8 @@ Laid out like Docker's default bridge, with taps instead of veths since Firecrac
 
 Guest N uses `fc-tapN` and `10.230.0.(10+N)`, set with `ip=` on the kernel command line (needs
 `CONFIG_IP_PNP`, to verify for the CI kernel), and a public resolver in `/etc/resolv.conf`. No
-filtering: the guest reaches the LAN and the host. Not installed on any machine yet.
+filtering: the guest reaches the LAN and the host. Installed on the development machine on
+2026-11-20; no guest has used it yet.
 
 ### vsock, as Firecracker does it
 
