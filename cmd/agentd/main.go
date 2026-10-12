@@ -17,12 +17,14 @@ import (
 	"github.com/matbour/sandbox-agent/internal/job"
 	"github.com/matbour/sandbox-agent/internal/linear"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
+	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
 	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
 )
 
 // providers are the sandbox implementations agentd can use (SANDBOX_PROVIDER).
 var providers = sandbox.Registry{
-	"sbx": sbx.New,
+	"sbx":         sbx.New,
+	"firecracker": firecracker.New,
 }
 
 func main() {

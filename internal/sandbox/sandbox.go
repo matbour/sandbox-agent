@@ -3,11 +3,14 @@
 // gVisor and the project's own runtime next.
 //
 // Every provider must guarantee, and sandboxtest checks:
-//   - the job's workspace is mounted read-write and is the working directory of commands;
+//   - the job's workspace is read-write and is the working directory of commands. It is either
+//     shared with the host, or a copy that Syncer brings back (Firecracker has no shared
+//     directory);
 //   - commands do not run as root on the host;
 //   - the agent can reach the model API without the API key entering the sandbox (the key is
-//     injected outside, by a proxy);
-//   - the host's loopback, the LAN and cloud metadata addresses are not reachable;
+//     injected outside, by a proxy). Waived for Firecracker in the development phase (D43);
+//   - the host's loopback, the LAN and cloud metadata addresses are not reachable. Waived for
+//     Firecracker in the development phase (D44);
 //   - Close removes everything the sandbox created, except the workspace.
 package sandbox
 
@@ -53,6 +56,14 @@ type Provider interface {
 	// example). agentd calls it before each job, while no other job is running.
 	Prepare(ctx context.Context) error
 	Start(ctx context.Context, s Spec) (Sandbox, error)
+}
+
+// Syncer is implemented by sandboxes whose workspace is a copy rather than a shared directory.
+// SyncWorkspace makes the host's workspace match the sandbox's: files created, changed and
+// deleted, except paths matching exclude (patterns as in guestexec.Excluded). Callers sync before
+// reading the workspace. What comes back is hostile input and is validated after, as before (D5).
+type Syncer interface {
+	SyncWorkspace(ctx context.Context, exclude []string) error
 }
 
 // CacheTrimmer is implemented by sandboxes whose memory is not given back to the host on its own

@@ -27,6 +27,9 @@ __pycache__/
 .DS_Store
 `
 
+// excludePatterns is exclude as a list, for sandbox.Syncer.
+func excludePatterns() []string { return strings.Fields(exclude) }
+
 var unsafeName = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // prepare exports the clean clone into the workspace and sets the host-side excludes.

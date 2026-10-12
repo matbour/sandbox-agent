@@ -187,6 +187,14 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	// Stage the workspace against the clean clone and validate the change set.
 	stage(ctx, dir, StageValidating)
 
+	// A provider without a shared directory (Firecracker) brings the workspace back first. Build
+	// artifacts stay in the guest: they would be excluded from the change set anyway.
+	if s, ok := sb.(sandbox.Syncer); ok {
+		if err := s.SyncWorkspace(ctx, excludePatterns()); err != nil {
+			return ex, err
+		}
+	}
+
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 	if _, err := g.Run(ctx, "add", "--all", "--", "."); err != nil {
 		return ex, err

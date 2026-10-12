@@ -17,9 +17,19 @@ import (
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
+// Options relax the suite for a provider's known, recorded exceptions.
+type Options struct {
+	// OpenNetwork: the sandbox reaches the LAN and the host on purpose (D44, development phase).
+	// The reachability checks are skipped, not passed.
+	OpenNetwork bool
+}
+
 // Run checks the contract of package sandbox against p. workRoot is a host directory under which
 // the workspace is created (some providers only mount from allowed locations).
-func Run(t *testing.T, p sandbox.Provider, workRoot string) {
+func Run(t *testing.T, p sandbox.Provider, workRoot string) { RunWith(t, p, workRoot, Options{}) }
+
+// RunWith is Run with exceptions.
+func RunWith(t *testing.T, p sandbox.Provider, workRoot string, o Options) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -60,10 +70,29 @@ func Run(t *testing.T, p sandbox.Provider, workRoot string) {
 		return strings.TrimSpace(string(so)), strings.TrimSpace(string(se)), err
 	}
 
+	if err := os.WriteFile(filepath.Join(ws, "deleted-in-sandbox.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("workspace", func(t *testing.T) {
-		out, se, err := sh(sandbox.ExecOptions{}, "pwd; cat from-host.txt; echo from sandbox > from-sandbox.txt")
+		out, se, err := sh(sandbox.ExecOptions{}, "pwd; cat from-host.txt; echo from sandbox > from-sandbox.txt; "+
+			"rm deleted-in-sandbox.txt; mkdir -p node_modules/dep && echo x > node_modules/dep/index.js")
 		if err != nil {
 			t.Fatalf("%v: %s", err, se)
+		}
+
+		if s, ok := sb.(sandbox.Syncer); ok {
+			if err := s.SyncWorkspace(ctx, []string{"node_modules/"}); err != nil {
+				t.Fatalf("sync: %v", err)
+			}
+
+			if _, err := os.Stat(filepath.Join(ws, "deleted-in-sandbox.txt")); err == nil {
+				t.Error("a file deleted in the sandbox is still on the host after sync")
+			}
+
+			if _, err := os.Stat(filepath.Join(ws, "node_modules")); err == nil {
+				t.Error("an excluded directory was synced to the host")
+			}
 		}
 
 		if !strings.HasPrefix(out, sb.WorkDir()+"\n") || !strings.Contains(out, "hello from host") {
@@ -72,6 +101,12 @@ func Run(t *testing.T, p sandbox.Provider, workRoot string) {
 
 		if b, err := os.ReadFile(filepath.Join(ws, "from-sandbox.txt")); err != nil || strings.TrimSpace(string(b)) != "from sandbox" {
 			t.Errorf("file written in the sandbox not visible on the host: %v %q", err, b)
+		}
+	})
+	t.Run("output and exit status", func(t *testing.T) {
+		so, se, err := sb.Exec(ctx, sandbox.ExecOptions{}, "sh", "-c", "echo out; echo err >&2; exit 3")
+		if err == nil || strings.TrimSpace(string(so)) != "out" || strings.TrimSpace(string(se)) != "err" {
+			t.Errorf("stdout %q stderr %q err %v; want out, err and an exit status error", so, se, err)
 		}
 	})
 	t.Run("unprivileged by default", func(t *testing.T) {
@@ -107,6 +142,14 @@ func Run(t *testing.T, p sandbox.Provider, workRoot string) {
 		}
 	})
 	t.Run("host and LAN unreachable", func(t *testing.T) {
+		if o.OpenNetwork {
+			t.Skip("open network on purpose (D44, development phase)")
+		}
+
+		if _, _, err := sh(sandbox.ExecOptions{}, "command -v curl"); err != nil {
+			t.Fatal("curl is missing in the sandbox: reachability cannot be checked")
+		}
+
 		l, err := net.Listen("tcp", "0.0.0.0:0")
 		if err != nil {
 			t.Fatal(err)
