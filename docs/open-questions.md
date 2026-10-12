@@ -60,7 +60,6 @@ most convenient:
 Details and the proposed answers are in [decision/runners.md](decision/runners.md#open).
 
 - The manager's store, now that `state.json` (D23) must hold leases and concurrent runs.
-- How the worker's task and events cross the VM boundary without vsock.
 - Firecracker on the board, and whether the board accepts a tap and NAT (D44).
 - How a runner on another machine reaches the manager (LAN, VPN, tunnel with a service token).
 - Time to serve a base tree of the target monorepo as a tar (to measure).

@@ -539,3 +539,30 @@ architectures (arm64 Chromium through Playwright, to verify on the board).
   images to a PR; linking them from a separate branch is to verify.
 - Chromium runs with `--no-sandbox` in the guest: the microVM is the boundary. Rendering is in
   software; there is no GPU in the guest.
+
+## D46. A guest agent over vsock controls the microVM; the workspace comes back as a tar stream (2026-11-20)
+
+D44 shelved vsock for egress (the relay and proxy for the model API). Control is a different job:
+the host needs to run commands in the guest, read their output, cancel them and get the workspace
+back, and vsock is how Firecracker and Kata reach their guests. A TCP service on the tap would tie
+control to the network that the next version closes. So:
+
+- `cmd/guest-agent` is PID 1 in the guest. A one-line shell init mounts `/run` and the agent's own
+  read-only disk, then execs it. It mounts the rest (`/proc`, `/sys`, `/dev/pts`, `/dev/shm`,
+  `/tmp`, a tmpfs home for the agent user, the workspace disk), copies `/etc` to a tmpfs and adds
+  `resolv.conf` and the hostname, brings `lo` up, and listens on vsock port 1024. As PID 1 it
+  reaps every child: commands are started with `os.StartProcess` and their status comes from its
+  `wait4(-1)` loop, never from `Process.Wait`, which would race with it.
+- `internal/guestexec` is the protocol: one JSON request line, then frames (stdout, stderr, tar
+  data, end) of at most 1 MiB each. Closing the stream cancels: the guest kills the command's
+  process group. Standard library only.
+- The workspace goes in as an ext4 image built by the host's `mkfs.ext4 -d` from a tar whose
+  owner is forced to the guest's agent user (1000), so it works whatever the host UID is (1002 on
+  the board). It comes back through `sandbox.Syncer`, a new optional interface: the guest sends
+  `/workspace` as a tar stream, minus the build artifacts of `internal/job`'s exclude list, and
+  `guestexec.Mirror` applies it to the host directory. The stream is hostile: every entry is
+  resolved under the workspace with `openat2(RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS)`, with size and
+  entry limits (E-OUT-7). The manager then validates the change set as before (D5).
+
+Settles the open point of runners.md on how the task and events cross the VM boundary: over this
+channel (R2 adds stdin and streaming for the worker).

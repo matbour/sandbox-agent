@@ -184,8 +184,8 @@ The point of the demonstration, so it is written in Go rather than driven by the
 - the jailer, with a cgroup and the runner's CPU set per microVM;
 - an OCI image (multi-arch index, pinned by digest) turned into a read-only ext4 root disk for the
   runner's architecture, cached by digest, plus a writable disk per run;
-- the workspace as a disk built from the base tree and read back after the run (Firecracker has no
-  shared directory; virtio-fs is not supported);
+- the workspace as a disk built from the base tree and read back after the run as a tar stream
+  (Firecracker has no shared directory; virtio-fs is not supported; D46);
 - one tap per running microVM on a bridge with NAT, as Docker does (`deploy/network/`), the guest
   address on the kernel command line (D44);
 - the worker binary for the runner's architecture on a read-only disk, so its version matches the
@@ -193,8 +193,8 @@ The point of the demonstration, so it is written in Go rather than driven by the
 - later: snapshot a booted guest once per image and architecture, restore it per run, keep a small
   warm pool, and measure cold boot against restore.
 
-How the worker's task and events cross the VM boundary without vsock (serial console, or the guest
-reaching the runner over the tap) is decided at R2 (roadmap).
+The task and the events cross the VM boundary through the guest agent over vsock (D46), not over
+the tap: control does not depend on the network that the next version closes.
 
 ## Manager and runner protocol
 
@@ -318,7 +318,6 @@ The import test of D33 is extended: `cmd/runnerd` must not depend on `internal/l
 
 - **Store.** SQLite was turned down in D23 (cgo, or a large pure-Go dependency). Options: JSON files
   with one writer in memory and append-only logs, bbolt, or `modernc.org/sqlite`. To decide at R3.
-- **Task and events across the VM boundary** without vsock (R2).
 - **Firecracker on the board**, with vCPUs pinned to cores 4-7: not tried yet (M1). If it does not
   boot there, the board's runner uses `sbx` for the demonstration.
 - **Network on the board.** A tap and NAT change the board's system configuration, which this

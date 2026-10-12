@@ -82,11 +82,17 @@ the next version (N).
 
 - [ ] R0, Firecracker on the board: boot the CI kernel with vCPUs pinned to cores 4-7 (M1). If it
       does not boot, the board's runner uses `sbx` for the demonstration.
-- [ ] R1, Firecracker provider in Go on the development machine: API client over the Unix socket,
-      jailer, OCI image to a cached ext4 root disk per architecture, workspace disk in and out,
-      worker disk, one tap per microVM with NAT (D44). Passes the conformance suite.
-- [ ] R2, worker: W's remaining items, the task and events across the VM boundary without vsock,
-      the dev token in the guest's environment (D43), and a `fake` agent backend.
+- [x] R1a, Firecracker provider in Go on the development machine (2026-11-20, D46):
+      `internal/sandbox/firecracker` with its own API client over the Unix socket, a tap per
+      microVM from a flock'd pool (D44), the workspace disk in and out (`sandbox.Syncer`), the
+      guest agent on a cached read-only disk, `cmd/guest-agent` as PID 1 over vsock. Passes the
+      conformance suite (network checks skipped on purpose); `agentd` can use it
+      (`SANDBOX_PROVIDER=firecracker`). Guest agent ready 0.8 s after start.
+- [ ] R1b, the rest of R1: the jailer (it needs root: decide how), an OCI image turned into a
+      cached ext4 root disk per architecture instead of `scripts/build-rootfs.sh`, `curl` in the
+      image, a runner restart that kills its leftover microVMs (pid files are already written).
+- [ ] R2, worker: W's remaining items, stdin and streamed events over the guest agent (D46), the
+      dev token in the guest's environment (D43), and a `fake` agent backend.
 - [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and
       outbox, secret scan of outputs; waiting for CI becomes a step with a timer. Decide the store
       (D23 does not fit leases) and the project file format.

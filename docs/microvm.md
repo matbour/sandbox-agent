@@ -68,6 +68,29 @@ agent rootfs has no `/etc/resolv.conf`; `lib.sh` copies `/etc` to a tmpfs and ad
 image ships it. `FC_NET=<N>` in `lib.sh` turns the network device on; without it, guests have
 none, as before.
 
+### The provider in Go (R1, D46)
+
+`internal/sandbox/firecracker` starts one microVM per sandbox through Firecracker's API socket
+(machine config, boot source, three drives, the tap, vsock, start), with
+`taskset -c <CPUs>` when a CPU set is configured. Disks: the agent rootfs read-only (vda), the
+workspace (vdb, an ext4 image made by `mkfs.ext4 -d` from a tar of the host directory), and the
+guest agent (vdc, cached per binary hash). `cmd/guest-agent`, PID 1 in the guest, answers on
+vsock port 1024. A failed boot leaves `<state>/vms/<name>.failed.log` with the console.
+
+Verified on 2026-11-20 on the development machine: the conformance suite passes, and a command in
+the guest runs as root on request, has the VM's hostname, finds `git`, `bun` and `claude`, and
+reaches `api.anthropic.com` over HTTPS. The guest agent answers 0.8 s after `Start` (kernel boot
+included; the workspace was a few files).
+
+Found on the way:
+
+- busybox `mount` without `-t` detects the type through `/proc`, which the init has not mounted
+  yet: it fails with "No such file or directory" although the device exists.
+- `mkfs.ext4 -d` reads a tar (e2fsprogs 1.47.1 or later, here 1.47.2 on the host) and keeps the
+  owners written in the tar, not the host's: that is how the workspace belongs to the guest's
+  agent user on any host.
+- `mount` of the workspace and the agent disk name `ext4` explicitly for the same reason.
+
 ### vsock, as Firecracker does it
 
 vsock is a socket family (`AF_VSOCK`) for a VM and its host, with no network stack: an address is a

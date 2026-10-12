@@ -36,6 +36,8 @@ Mentions without a pull request start a research run that changes nothing (D27).
 | Provider `sbx` | Host | No | Starts one Docker Sandboxes microVM per job ([docker-sandboxes.md](docker-sandboxes.md)) |
 | `sbx` proxy | Host | Anthropic key (sbx secret store) | Injects the key and applies the network policy (D14) |
 | Agent | Inside the VM | No | Claude Code, non-interactive ([agents.md](agents.md)) |
+| Provider `firecracker` | Host | No | One Firecracker microVM per job, `SANDBOX_PROVIDER=firecracker` (R1, D46, [microvm.md](microvm.md)) |
+| `guest-agent` | Inside the microVM | No | PID 1 of a Firecracker guest: runs commands and returns the workspace over vsock (D46) |
 | `bin/sandbox` | — | — | Stub. Becomes the layer 1 runtime (M3, [sandbox.md](sandbox.md)) |
 | `vsock-to-anthropic` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40, D41). Shelved for the development phase (D44) |
 | `loopback-to-vsock` | Inside the microVM | No | Relays `127.0.0.1:8080` to the host over vsock. Shelved (D44) |
