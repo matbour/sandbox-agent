@@ -88,9 +88,10 @@ the next version (N).
       guest agent on a cached read-only disk, `cmd/guest-agent` as PID 1 over vsock. Passes the
       conformance suite (network checks skipped on purpose); `agentd` can use it
       (`SANDBOX_PROVIDER=firecracker`). Guest agent ready 0.8 s after start.
-- [ ] R1b, the rest of R1: the jailer (it needs root: decide how), an OCI image turned into a
-      cached ext4 root disk per architecture instead of `scripts/build-rootfs.sh`, `curl` in the
-      image, a runner restart that kills its leftover microVMs (pid files are already written).
+- [ ] R1b, the rest of R1: an OCI image turned into a cached ext4 root disk per architecture
+      instead of `scripts/build-rootfs.sh`, `curl` in the image, a runner restart that kills its
+      leftover microVMs (pid files are already written). No jailer: rootless, and the layer 1
+      runtime wraps the VMM from M3 (D47).
 - [ ] R2, worker: W's remaining items, stdin and streamed events over the guest agent (D46), the
       dev token in the guest's environment (D43), and a `fake` agent backend.
 - [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and

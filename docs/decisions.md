@@ -566,3 +566,19 @@ control to the network that the next version closes. So:
 
 Settles the open point of runners.md on how the task and events cross the VM boundary: over this
 channel (R2 adds stdin and streaming for the worker).
+
+## D47. Firecracker runs rootless, without the jailer (2026-11-20)
+
+Firecracker's jailer needs root: it creates a chroot, cgroups and namespaces, then drops to an
+unprivileged user before exec'ing the VMM. The owner prefers rootless, and the project already
+plans a rootless runtime that does the same job (layer 1, M3: user and mount namespaces,
+`pivot_root`, cgroups through systemd delegation, seccomp, Landlock). So:
+
+- `runnerd` starts `firecracker` directly, as the runner's account, which is in `kvm`. Nothing
+  runs as root at run time; the only root steps are one-time host setup by the owner (the network
+  of D44, and later the AppArmor `userns,` profile of M2).
+- Until M3, the VMM process has no jail of its own: it runs with the account's rights, plus
+  Firecracker's built-in seccomp filters, which apply without the jailer. A guest escaping into
+  the VMM would act as that account. Accepted for the development phase, with D43 and D44.
+- From M3, the layer 1 runtime wraps the VMM (one namespace set, cgroup and Landlock domain per
+  VM), as `microvm.md` already planned ("our runtime can play its role").

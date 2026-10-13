@@ -7,7 +7,8 @@
 // directory. The network, when the host has taps, is a tap on the bridge of deploy/network/
 // (D44), with the guest's address on the kernel command line.
 //
-// Not done yet: the jailer (it needs root), snapshots, converting an OCI image to the rootfs.
+// It runs rootless, without Firecracker's jailer, which needs root (D47); the layer 1 runtime
+// will wrap the VMM instead (M3). Not done yet: snapshots, converting an OCI image to the rootfs.
 package firecracker
 
 import (

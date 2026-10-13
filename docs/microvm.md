@@ -75,7 +75,8 @@ none, as before.
 `taskset -c <CPUs>` when a CPU set is configured. Disks: the agent rootfs read-only (vda), the
 workspace (vdb, an ext4 image made by `mkfs.ext4 -d` from a tar of the host directory), and the
 guest agent (vdc, cached per binary hash). `cmd/guest-agent`, PID 1 in the guest, answers on
-vsock port 1024. A failed boot leaves `<state>/vms/<name>.failed.log` with the console.
+vsock port 1024. A failed boot leaves `<state>/vms/<name>.failed.log` with the console. It runs rootless, without
+the jailer (D47).
 
 Verified on 2026-11-20 on the development machine: the conformance suite passes, and a command in
 the guest runs as root on request, has the VM's hostname, finds `git`, `bun` and `claude`, and
