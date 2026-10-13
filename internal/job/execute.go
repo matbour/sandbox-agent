@@ -156,10 +156,23 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		args = append(args, "--model", model)
 	}
 
+	// D43: with a provider that injects no key (Firecracker), the subscription token goes into the
+	// agent's environment, for this command only. sbx injects its own key through its proxy.
+	var agentEnv []string
+	if cfg.ClaudeToken != "" && r.Sandbox.Name() != "sbx" {
+		agentEnv = append(agentEnv, "CLAUDE_CODE_OAUTH_TOKEN="+cfg.ClaudeToken)
+	}
+
 	actx, cancel := context.WithTimeout(ctx, cfg.AgentTimeout)
-	so, se, err := sb.Exec(actx, sandbox.ExecOptions{}, args...)
+	so, se, err := sb.Exec(actx, sandbox.ExecOptions{Env: agentEnv}, args...)
 
 	cancel()
+
+	// The token must not come back in anything that is logged or published (D43).
+	if leaks(cfg.ClaudeToken, so, se) {
+		return ex, errSecretLeak
+	}
+
 	logf("agent.json", so)
 	logf("agent.stderr", se)
 
@@ -208,6 +221,10 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	full, err := g.Run(ctx, "diff", "--cached", "--binary", "--no-renames")
 	if err != nil {
 		return ex, err
+	}
+
+	if leaks(cfg.ClaudeToken, []byte(full)) {
+		return ex, errSecretLeak
 	}
 
 	logf("changes.patch", []byte(full))

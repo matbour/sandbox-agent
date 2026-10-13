@@ -50,6 +50,10 @@ type Config struct {
 	AuthorEmail    string
 	MaxFiles       int
 	MaxPatchBytes  int
+
+	// ClaudeToken is the subscription token of D43, empty when the file is absent. It enters
+	// the guest only for providers that do not inject a key themselves.
+	ClaudeToken string
 }
 
 // Load reads the secrets directory, lets the environment override settings, and requires the
@@ -129,6 +133,11 @@ func load(secretsDir string, full bool) (*Config, error) {
 		return nil, err
 	}
 
+	claudeToken, err := readSecret(secretsDir, ClaudeTokenFile)
+	if err != nil {
+		return nil, err
+	}
+
 	setupDefault := ""
 	if p := filepath.Join(secretsDir, SetupFile); fileExists(p) {
 		setupDefault = p
@@ -164,6 +173,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		DenyPaths:      list(get("DENY_PATHS", "")),
 		AuthorName:     get("COMMIT_AUTHOR_NAME", ""),
 		AuthorEmail:    get("COMMIT_AUTHOR_EMAIL", ""),
+		ClaudeToken:    claudeToken,
 	}
 	if c.PollInterval, err = time.ParseDuration(get("POLL_INTERVAL", "30s")); err != nil {
 		return nil, fmt.Errorf("POLL_INTERVAL: %w", err)

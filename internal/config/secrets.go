@@ -15,16 +15,19 @@ import (
 //	secrets/github-app.pem   GitHub App private key
 //	secrets/setup.sh         optional sandbox setup script (+ setup.notes.md)
 //	secrets/anthropic-api-key  Anthropic API key, read by vsock-to-anthropic only
+//	secrets/claude-oauth-token Claude subscription token (claude setup-token), development phase
+//	                         only: set in the guest for providers without key injection (D43)
 //
 // The directory and every file read from it must not be accessible to group or others.
 const (
-	ConfigFile     = "config.env"
-	LinearIDFile   = "linear-client-id"
-	LinearSecFile  = "linear-client-secret"
-	LinearHookFile = "linear-webhook-secret"
-	GitHubKeyFile  = "github-app.pem"
-	SetupFile      = "setup.sh"
-	AnthropicFile  = "anthropic-api-key"
+	ConfigFile      = "config.env"
+	LinearIDFile    = "linear-client-id"
+	LinearSecFile   = "linear-client-secret"
+	LinearHookFile  = "linear-webhook-secret"
+	GitHubKeyFile   = "github-app.pem"
+	SetupFile       = "setup.sh"
+	AnthropicFile   = "anthropic-api-key"
+	ClaudeTokenFile = "claude-oauth-token"
 )
 
 // CheckPrivate fails if path is accessible to group or others.
