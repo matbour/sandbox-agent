@@ -83,8 +83,18 @@ the guest runs as root on request, has the VM's hostname, finds `git`, `bun` and
 reaches `api.anthropic.com` over HTTPS. The guest agent answers 0.8 s after `Start` (kernel boot
 included; the workspace was a few files).
 
+First real agent run (2026-11-20, development machine): `agentd -try` with
+`SANDBOX_PROVIDER=firecracker` on a small Bun repository, Claude Code with Haiku on the owner's
+subscription token (D43), 2 vCPUs, 2 GiB. The agent added a function and its test and ran
+`bun test` in the guest; the patch held exactly those two files. 10.9 s wall clock in all
+(clone, workspace disk, boot, 8.7 s of agent over 7 turns, sync back, diff and validation). No VM
+or tap lease left behind.
+
 Found on the way:
 
+- A token pasted from `claude setup-token` can keep the terminal's line wrap: the API then
+  answers "401 OAuth access token is invalid". The file must hold one line, `sk-ant-oat01-`
+  followed by letters, digits, `-` and `_` (108 characters here).
 - busybox `mount` without `-t` detects the type through `/proc`, which the init has not mounted
   yet: it fails with "No such file or directory" although the device exists.
 - `mkfs.ext4 -d` reads a tar (e2fsprogs 1.47.1 or later, here 1.47.2 on the host) and keeps the

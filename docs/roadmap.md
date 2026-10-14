@@ -87,7 +87,8 @@ the next version (N).
       microVM from a flock'd pool (D44), the workspace disk in and out (`sandbox.Syncer`), the
       guest agent on a cached read-only disk, `cmd/guest-agent` as PID 1 over vsock. Passes the
       conformance suite (network checks skipped on purpose); `agentd` can use it
-      (`SANDBOX_PROVIDER=firecracker`). Guest agent ready 0.8 s after start.
+      (`SANDBOX_PROVIDER=firecracker`). Guest agent ready 0.8 s after start. First real agent
+      run through `agentd -try` with the subscription token (D43): 10.9 s end to end.
 - [ ] R1b, the rest of R1: an OCI image turned into a cached ext4 root disk per architecture
       instead of `scripts/build-rootfs.sh`, `curl` in the image, a runner restart that kills its
       leftover microVMs (pid files are already written). No jailer: rootless, and the layer 1
