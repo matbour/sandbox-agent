@@ -68,34 +68,6 @@ func Prompt(is linear.Issue, extra string) string {
 	return b.String()
 }
 
-// ParseSummary extracts the PR title and body from the agent's final message.
-func ParseSummary(result, fallbackTitle string) (title, body string) {
-	lines := strings.Split(strings.ReplaceAll(result, "\r\n", "\n"), "\n")
-	for i, l := range lines {
-		if t, ok := strings.CutPrefix(strings.TrimSpace(l), "TITLE:"); ok {
-			title = strings.TrimSpace(t)
-			body = strings.TrimSpace(strings.Join(lines[i+1:], "\n"))
-
-			break
-		}
-	}
-
-	if title == "" {
-		title, body = fallbackTitle, strings.TrimSpace(result)
-	}
-
-	title = strings.Join(strings.Fields(title), " ")
-	if r := []rune(title); len(r) > 100 {
-		title = string(r[:100])
-	}
-
-	if len(body) > 20000 {
-		body = body[:20000] + "\n\n…(truncated)"
-	}
-
-	return title, body
-}
-
 func orNone(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return "(none)"
