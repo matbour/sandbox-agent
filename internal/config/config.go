@@ -38,6 +38,7 @@ type Config struct {
 	CPUs           string // host cores for the sbx daemon and its VMs
 	SandboxCPUs    int
 	SandboxMemory  string
+	AgentBackend   string       // claude, or fake (no model) for runs through the worker
 	AgentModel     string       // model for TriggerLabel
 	ModelLabels    []ModelLabel // labels that select a model explicitly, weakest first
 	RetryLabel     string       // label suggested after a failed run
@@ -166,6 +167,7 @@ func load(secretsDir string, full bool) (*Config, error) {
 		CPUs:           get("CPUS", "4-7"),
 		Provider:       get("SANDBOX_PROVIDER", "sbx"),
 		SandboxMemory:  get("SANDBOX_MEMORY", "6g"),
+		AgentBackend:   get("AGENT_BACKEND", "claude"),
 		AgentModel:     get("AGENT_MODEL", "claude-sonnet-5-5"),
 		RetryLabel:     get("RETRY_LABEL", "agent-opus"),
 		AgentBudgetUSD: get("AGENT_BUDGET_USD", "5"),

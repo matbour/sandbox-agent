@@ -2,8 +2,6 @@ package job
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,36 +104,14 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		}
 	}()
 
-	// Optional setup (install the toolchain and dependencies), as the agent user.
+	// The setup notes go into the prompt; the script itself runs in the sandbox.
 	notes := ""
 
 	if cfg.SetupScript != "" {
-		script, err := os.ReadFile(cfg.SetupScript)
-		if err != nil {
-			return ex, err
-		}
-
-		sctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-		so, se, err := sb.Exec(sctx, sandbox.ExecOptions{}, "bash", "-euo", "pipefail", "-c", string(script))
-
-		cancel()
-		logf("setup.log", append(so, se...))
-
-		if trimmer != nil {
-			trimmer.DropCache(ctx) // the install read and wrote gigabytes
-		}
-
-		if err != nil {
-			return ex, fmt.Errorf("setup script: %w: %s", err, truncate(lastLines(string(se), 20), 2000))
-		}
-
 		if b, err := os.ReadFile(strings.TrimSuffix(cfg.SetupScript, filepath.Ext(cfg.SetupScript)) + ".notes.md"); err == nil {
 			notes = string(b)
 		}
 	}
-
-	// Agent.
-	stage(ctx, dir, StageAgent)
 
 	prompt := Prompt(is, notes)
 	if research := LastResearch(cfg.StateDir, is.Identifier); research != "" && o.prompter == nil {
@@ -147,15 +123,6 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		prompt = o.prompter(notes)
 	}
 
-	logf("prompt.md", []byte(prompt))
-
-	args := []string{"claude", "-p", prompt, "--dangerously-skip-permissions",
-		"--output-format", "json", "--no-session-persistence",
-		"--max-turns", fmt.Sprint(cfg.AgentMaxTurns), "--max-budget-usd", cfg.AgentBudgetUSD}
-	if model != "" {
-		args = append(args, "--model", model)
-	}
-
 	// D43: with a provider that injects no key (Firecracker), the subscription token goes into the
 	// agent's environment, for this command only. sbx injects its own key through its proxy.
 	var agentEnv []string
@@ -163,34 +130,15 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 		agentEnv = append(agentEnv, "CLAUDE_CODE_OAUTH_TOKEN="+cfg.ClaudeToken)
 	}
 
-	actx, cancel := context.WithTimeout(ctx, cfg.AgentTimeout)
-	so, se, err := sb.Exec(actx, sandbox.ExecOptions{Env: agentEnv}, args...)
-
-	cancel()
-
-	// The token must not come back in anything that is logged or published (D43).
-	if leaks(cfg.ClaudeToken, so, se) {
-		return ex, errSecretLeak
+	// A sandbox that carries the worker runs the setup and the agent through it (D33); the others
+	// are driven command by command from here.
+	run := r.runDirect
+	if wh, ok := sb.(sandbox.WorkerHost); ok && wh.WorkerPath() != "" {
+		run = r.runWorker
 	}
 
-	logf("agent.json", so)
-	logf("agent.stderr", se)
-
-	res := &ex.agent
-	if jerr := json.Unmarshal(so, res); jerr == nil {
-		ex.CostUSD, ex.Turns = res.CostUSD, res.Turns
-	}
-
-	if errors.Is(actx.Err(), context.DeadlineExceeded) {
-		return ex, fmt.Errorf("agent timed out after %s", cfg.AgentTimeout)
-	}
-
-	if err != nil && res.Result == "" {
-		return ex, fmt.Errorf("agent: %w: %s", err, truncate(lastLines(string(se), 20), 2000))
-	}
-
-	if res.IsError {
-		return ex, fmt.Errorf("agent stopped (%s): %s", res.Subtype, truncate(res.Result, 2000))
+	if err := run(ctx, agentRun{sb: sb, trimmer: trimmer, prompt: prompt, model: model, env: agentEnv, dir: dir, logf: logf}, ex); err != nil {
+		return ex, err
 	}
 
 	if o.readOnly {
@@ -245,7 +193,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	ex.Changed = len(changes)
 	if !v.OK() {
 		if len(changes) == 0 {
-			return ex, &NoChangesError{Message: res.Result}
+			return ex, &NoChangesError{Message: ex.agent.Result}
 		}
 
 		return ex, fmt.Errorf("patch rejected:\n- %s", strings.Join(v.Rejections, "\n- "))
