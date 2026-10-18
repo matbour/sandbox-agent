@@ -18,7 +18,8 @@ Linear ── label (polling, D15) ─────────────┐
    2. clone the repository on the host (GitHub App installation token, D12)
    3. copy the working tree, without .git, into a fresh workspace (D5)
    4. start a sandbox on that workspace through the provider (sbx, D30)
-   5. run the setup script, then `claude -p` with the rendered prompt
+   5. run the setup script, then `claude -p` with the rendered prompt (with Firecracker, both
+      through the worker inside the guest, D33; its events go to events.jsonl)
    6. stage the workspace against the clean clone, validate the change set
    7. commit, push `agent/*`, open a draft pull request
    8. wait for checks, run fix passes, mark ready or hand back (D26)

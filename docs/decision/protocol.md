@@ -1,7 +1,12 @@
 # Manager, worker and protocol
 
-Decided on 2026-11-14 (D33), not implemented yet. The steps are in [roadmap.md](../roadmap.md),
-milestone W. Until W is done, [architecture.md](../architecture.md) describes what runs today.
+Decided on 2026-11-14 (D33). Implemented on 2026-11-20 for Firecracker (`internal/task`,
+`cmd/worker`, `internal/job/agentrun.go`); `sbx` still runs the agent from the host. What is left
+is in [roadmap.md](../roadmap.md), milestone W.
+
+As built, two details differ from the text below: the worker binary sits on Firecracker's
+read-only tools disk at `/run/agent/worker` (not `/opt/sandbox-agent/worker`), found through
+`sandbox.WorkerHost`; and the limits are sent in seconds (`agent_timeout_s`, `setup_timeout_s`).
 
 ## Summary
 

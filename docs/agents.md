@@ -20,8 +20,12 @@ worker. See [decision/protocol.md](decision/protocol.md).
 
 - Command used today: `claude -p "<prompt>" --dangerously-skip-permissions --output-format json
   --no-session-persistence --max-turns <n> --max-budget-usd <n> --model <model>`. Skipping
-  permission prompts is fine because the sandbox is the permission boundary. The worker will use
-  `--output-format stream-json` to emit `action` events while the agent works.
+  permission prompts is fine because the sandbox is the permission boundary. Through the worker
+  (Firecracker, D33), it is `claude -p --output-format stream-json --verbose` with the prompt on
+  stdin (one argument is capped at 128 KiB): text becomes `thought` events, each tool call with
+  its result an `action`.
+- Fake backend (`AGENT_BACKEND=fake`, worker only): no model, scripted by `FAKE:` lines in the
+  prompt (`sleep`, `write`, `thought`, `ask`, `fail`). For tests and load.
 - Key: with `sbx`, the `sbx` proxy injects it (no key in the VM). In Firecracker during the
   development phase (D43, D44), Claude Code authenticates with the owner's subscription through
   `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) and calls `api.anthropic.com` directly. With

@@ -59,17 +59,24 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 Design in [decision/protocol.md](decision/protocol.md).
 
 - [x] `make build` builds every `./cmd/...` into `bin/` (2026-11-16).
-- [ ] Import test: `cmd/worker`, `cmd/sandbox` and `internal/task` do not depend on `linear`,
-      `github`, `config` or `gitops`.
-- [ ] `internal/task`: `Task`, `Event` and the event kinds, plus the manager's event reader with its
-      limits. E-PROTO tests pass.
-- [ ] `ExecOptions` gains `Stdin` and `Stdout` for streaming; the conformance suite covers it. Verify
-      that `sbx exec` streams without a TTY.
-- [ ] `Spec` gains a read-only mount for the worker binary; the conformance suite checks E-RT-4.
-- [ ] `cmd/worker`: setup script, `claude -p --output-format stream-json`, final message parsed into
-      `ask`, `done` or `fail`.
-- [ ] Manager: render the task, read events, tag their source, forward them to Linear, own the
-      session state machine. `internal/job` no longer runs `claude` itself.
+- [x] Import test (2026-11-20, `internal/task/boundary_test.go`): `internal/task`, `cmd/worker`,
+      `cmd/guest-agent`, `cmd/sandbox` and `internal/guestexec` do not depend on `linear`,
+      `github`, `gitops`, `config` or `job`.
+- [x] `internal/task` (2026-11-20): `Task`, `Event` and the event kinds, the final-message parsers,
+      and the manager's event reader with its limits. E-PROTO-1 and 3 to 7 are unit tests.
+- [x] `ExecOptions` gains `Stdin` and `Stdout` (2026-11-20); the conformance suite covers it and
+      Firecracker passes. `sbx` returns `ErrNoStreaming` until `sbx exec` is checked on the board.
+- [x] The worker binary read-only in the guest (2026-11-20): on Firecracker's tools disk, reported
+      through `sandbox.WorkerHost`; the microVM tests check E-RT-4 (not even root can write it).
+      For `sbx`: a read-only mount, still to do.
+- [x] `cmd/worker` (2026-11-20): setup script, `claude -p --output-format stream-json`, final
+      message parsed into `ask`, `done` or `fail`; a `fake` backend scripted by `FAKE:` lines.
+- [x] Manager, first part (2026-11-20): with a sandbox that has the worker, `internal/job` renders
+      the task, reads the events (`events.jsonl`), forwards thoughts to the reporter (at most one
+      every 30 s) and maps the terminal event back to the final message. Checked with `agentd -try`
+      on Firecracker: the fake backend in 0.9 s, Claude Code (Haiku) in 9.4 s.
+- [ ] Manager, rest: tag events with their source in the overview, the session state machine of
+      D33 (moves into R3's durable steps), and `sbx` through the worker so the direct path goes.
 - [ ] Check on a real session which status Linear shows after each activity type; record it.
 - [ ] A real issue end to end through the worker.
 
