@@ -61,6 +61,11 @@ func Create(ctx context.Context, name, workspace string, o Options) (*Sandbox, e
 
 // Exec runs argv in the sandbox and returns stdout and stderr.
 func (s *Sandbox) Exec(ctx context.Context, o sandbox.ExecOptions, argv ...string) (stdout, stderr []byte, err error) {
+	// Whether sbx exec streams stdin and stdout without a TTY is to verify on the board.
+	if o.Stdin != nil || o.Stdout != nil {
+		return nil, nil, sandbox.ErrNoStreaming
+	}
+
 	dir := o.Dir
 	if dir == "" {
 		dir = s.workspace

@@ -16,7 +16,9 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -36,6 +38,21 @@ type ExecOptions struct {
 	User string   // empty: the sandbox's unprivileged user; "root": root inside the sandbox
 	Dir  string   // empty: the workspace
 	Env  []string // extra KEY=VALUE pairs
+
+	// Stdin, when set, is the command's input. Stdout, when set, receives the command's output as
+	// it comes, and Exec then returns no stdout. Providers that cannot stream return
+	// ErrNoStreaming.
+	Stdin  io.Reader
+	Stdout io.Writer
+}
+
+// ErrNoStreaming is returned by providers that cannot stream stdin or stdout yet.
+var ErrNoStreaming = errors.New("this provider cannot stream stdin or stdout")
+
+// WorkerHost is implemented by sandboxes that carry the worker binary (cmd/worker), read-only,
+// for the manager to run (D33).
+type WorkerHost interface {
+	WorkerPath() string // the worker's path inside the sandbox; empty: not available
 }
 
 // Sandbox is a running sandbox.

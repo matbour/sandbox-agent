@@ -40,6 +40,7 @@ type Config struct {
 	Kernel      string   // uncompressed guest kernel (vmlinux)
 	Rootfs      string   // agent rootfs, ext4
 	GuestAgent  string   // cmd/guest-agent, built for the guest's architecture
+	Worker      string   // cmd/worker, same architecture; optional
 	StateDir    string   // run directories, caches, tap locks
 	Taps        []string // taps to use; nil: every fc-tapN on the host; empty: no network
 	Subnet      string   // first three octets of the bridge's /24 (deploy/network/fc-net.sh)
@@ -75,6 +76,7 @@ func Defaults(c Config, root string) Config {
 	def(&c.Kernel, filepath.Join(root, "build", arch, "vmlinux"))
 	def(&c.Rootfs, filepath.Join(root, "build", arch, "rootfs.ext4"))
 	def(&c.GuestAgent, filepath.Join(bin, "guest-agent"))
+	def(&c.Worker, filepath.Join(bin, "worker"))
 	def(&c.StateDir, filepath.Join(home, ".local/state/sandbox-agent/firecracker"))
 	def(&c.Subnet, "10.230.0")
 	def(&c.DNS, "1.1.1.1")
@@ -210,7 +212,13 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 		}
 	}
 
-	agent, err := agentDisk(ctx, p.c.GuestAgent, filepath.Join(p.c.StateDir, "cache"))
+	tools := []string{p.c.GuestAgent}
+	if _, err := os.Stat(p.c.Worker); err == nil {
+		tools = append(tools, p.c.Worker)
+		sb.worker = "/run/agent/worker"
+	}
+
+	agent, err := agentDisk(ctx, tools, filepath.Join(p.c.StateDir, "cache"))
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +380,7 @@ func (s *Sandbox) consoleTail() string {
 // Sandbox is one running microVM.
 type Sandbox struct {
 	name, dir, workspace, vsock string
+	worker                      string // path in the guest, empty without one
 
 	c      Config
 	tap    *tapLease
@@ -387,6 +396,9 @@ func (s *Sandbox) Name() string { return s.name }
 
 // WorkDir is where the workspace disk is mounted in the guest.
 func (s *Sandbox) WorkDir() string { return "/workspace" }
+
+// WorkerPath is the worker binary in the guest, on the agent's read-only disk.
+func (s *Sandbox) WorkerPath() string { return s.worker }
 
 // dial opens a stream to the guest agent. Firecracker maps guest vsock ports to the device's Unix
 // socket: the host writes "CONNECT <port>" and reads "OK <port>" before the stream starts.
@@ -452,6 +464,10 @@ func (s *Sandbox) call(ctx context.Context, req guestexec.Request, sinks map[byt
 }
 
 func (s *Sandbox) request(ctx context.Context, req guestexec.Request, sinks map[byte]io.Writer) (guestexec.Result, error) {
+	return s.requestStdin(ctx, req, nil, sinks)
+}
+
+func (s *Sandbox) requestStdin(ctx context.Context, req guestexec.Request, stdin io.Reader, sinks map[byte]io.Writer) (guestexec.Result, error) {
 	select {
 	case <-s.exited:
 		return guestexec.Result{}, errors.New("the VM is not running")
@@ -463,7 +479,7 @@ func (s *Sandbox) request(ctx context.Context, req guestexec.Request, sinks map[
 		return guestexec.Result{}, err
 	}
 
-	return guestexec.Call(ctx, c, req, sinks)
+	return guestexec.CallStdin(ctx, c, req, stdin, sinks)
 }
 
 // ExitError is a command that ran and exited non-zero.
@@ -495,7 +511,12 @@ func (s *Sandbox) Exec(ctx context.Context, o sandbox.ExecOptions, argv ...strin
 	so := &capped{max: s.c.MaxOutput}
 	se := &capped{max: s.c.MaxOutput}
 
-	res, err := s.request(ctx, req, map[byte]io.Writer{guestexec.Stdout: so, guestexec.Stderr: se})
+	var outSink io.Writer = so
+	if o.Stdout != nil {
+		outSink = o.Stdout
+	}
+
+	res, err := s.requestStdin(ctx, req, o.Stdin, map[byte]io.Writer{guestexec.Stdout: outSink, guestexec.Stderr: se})
 	if err != nil {
 		return so.Bytes(), se.Bytes(), err
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 	"github.com/matbour/sandbox-agent/internal/sandbox/sandboxtest"
+	"github.com/matbour/sandbox-agent/internal/task"
 )
 
 // Needs `make build` (bin/guest-agent), the rootfs and kernel in build/<arch>/ (scripts/
@@ -50,11 +51,49 @@ func TestGuest(t *testing.T) {
 
 	ctx := context.Background()
 
-	sb, err := p.Start(ctx, sandbox.Spec{Name: "guest-check", Workspace: t.TempDir(), CPUs: 1, Memory: "1g"})
+	ws := t.TempDir()
+
+	sb, err := p.Start(ctx, sandbox.Spec{Name: "guest-check", Workspace: ws, CPUs: 1, Memory: "1g"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = sb.Close() }()
+
+	t.Run("worker", func(t *testing.T) {
+		wp := sb.(sandbox.WorkerHost).WorkerPath()
+		if wp == "" {
+			t.Fatal("no worker in the guest (make build)")
+		}
+
+		in := `{"prompt":"x\nFAKE: write out.txt from the worker","agent":"fake"}`
+
+		var events strings.Builder
+
+		_, se, err := sb.Exec(ctx, sandbox.ExecOptions{Stdin: strings.NewReader(in), Stdout: &events}, wp)
+
+		term := task.Read(strings.NewReader(events.String()), task.DefaultReadLimits, nil, nil)
+		if err != nil || term.Kind != task.KindDone {
+			t.Fatalf("worker: %v, terminal %+v, stderr %s", err, term, se)
+		}
+
+		if err := sb.(sandbox.Syncer).SyncWorkspace(ctx, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		if b, err := os.ReadFile(filepath.Join(ws, "out.txt")); err != nil || strings.TrimSpace(string(b)) != "from the worker" {
+			t.Errorf("out.txt on the host: %q %v", b, err)
+		}
+	})
+
+	// E-RT-4: the worker binary cannot be changed from inside, not even by root.
+	t.Run("worker read-only", func(t *testing.T) {
+		wp := sb.(sandbox.WorkerHost).WorkerPath()
+		for _, u := range []string{"", "root"} {
+			if _, _, err := sb.Exec(ctx, sandbox.ExecOptions{User: u}, "sh", "-c", "echo x >> "+wp); err == nil {
+				t.Errorf("user %q could write the worker", u)
+			}
+		}
+	})
 
 	for name, c := range map[string]struct {
 		o    sandbox.ExecOptions

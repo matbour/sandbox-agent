@@ -8,6 +8,9 @@
 //	'o' stdout bytes   'e' stderr bytes   'd' tar bytes (the workspace)
 //	'x' the end: JSON Result, always the last frame
 //
+// When the request sets Stdin, the host then sends the command's input the same way: 'i' frames,
+// and one empty 'c' frame for end of input.
+//
 // The host cancels a request by closing the stream; the guest then kills what it started.
 //
 // The guest is hostile: everything it sends is bounded (MaxFrame) and the workspace it returns
@@ -38,6 +41,9 @@ const (
 	Stderr byte = 'e'
 	Data   byte = 'd'
 	End    byte = 'x'
+
+	StdinData  byte = 'i' // host to guest
+	StdinClose byte = 'c' // host to guest: end of input
 )
 
 // Operations.
@@ -56,6 +62,8 @@ type Request struct {
 	Env  []string `json:"env,omitempty"` // KEY=VALUE, added to the agent's base environment
 	Dir  string   `json:"dir,omitempty"` // empty: the workspace
 	Root bool     `json:"root,omitempty"`
+	// Stdin: the host sends input frames after the request; otherwise stdin is /dev/null.
+	Stdin bool `json:"stdin,omitempty"`
 
 	// tar
 	Exclude []string `json:"exclude,omitempty"` // patterns, see Excluded
@@ -151,6 +159,25 @@ func (f FrameWriter) Write(p []byte) (int, error) {
 	}
 
 	return len(p), nil
+}
+
+// ReadFrame reads one frame into buf (at least MaxFrame bytes) and returns its kind and payload.
+func ReadFrame(r io.Reader, buf []byte) (byte, []byte, error) {
+	var hdr [5]byte
+	if _, err := io.ReadFull(r, hdr[:]); err != nil {
+		return 0, nil, err
+	}
+
+	n := binary.BigEndian.Uint32(hdr[1:])
+	if n > MaxFrame {
+		return 0, nil, fmt.Errorf("frame of %d bytes over the limit", n)
+	}
+
+	if _, err := io.ReadFull(r, buf[:n]); err != nil {
+		return 0, nil, fmt.Errorf("short frame: %w", err)
+	}
+
+	return hdr[0], buf[:n], nil
 }
 
 // ReadFrames reads frames until End and hands each payload to the writer of its kind. A kind

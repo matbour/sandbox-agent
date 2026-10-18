@@ -86,11 +86,21 @@ func run(req guestexec.Request, in io.Reader, w io.Writer, r *reaper) guestexec.
 
 	env = append(env, req.Env...)
 
-	devnull, err := os.Open(os.DevNull)
+	stdin, err := os.Open(os.DevNull)
 	if err != nil {
 		return guestexec.Result{Error: err.Error()}
 	}
-	defer func() { _ = devnull.Close() }()
+
+	var stdinW *os.File
+
+	if req.Stdin {
+		_ = stdin.Close()
+
+		if stdin, stdinW, err = os.Pipe(); err != nil {
+			return guestexec.Result{Error: err.Error()}
+		}
+	}
+	defer func() { _ = stdin.Close() }()
 
 	outR, outW, err := os.Pipe()
 	if err != nil {
@@ -106,24 +116,34 @@ func run(req guestexec.Request, in io.Reader, w io.Writer, r *reaper) guestexec.
 	}
 
 	p, err := r.start(argv0, req.Argv, &os.ProcAttr{
-		Dir: dir, Env: env, Files: []*os.File{devnull, outW, errW},
+		Dir: dir, Env: env, Files: []*os.File{stdin, outW, errW},
 		Sys: &syscall.SysProcAttr{Setpgid: true, Credential: cred},
 	})
 
 	_ = outW.Close()
 	_ = errW.Close()
+	_ = stdin.Close() // the child has its own copy
 
 	if err != nil {
 		_ = outR.Close()
 		_ = errR.Close()
 
+		if stdinW != nil {
+			_ = stdinW.Close()
+		}
+
 		return guestexec.Result{ExitCode: 127, Error: err.Error()}
 	}
 
-	// The host cancels by closing the stream: reading it then fails.
+	// After the request, the stream carries the command's input, if any; then the host closes it
+	// to cancel, and reading fails.
 	var finished atomic.Bool
 
 	go func() {
+		if stdinW != nil {
+			feedStdin(in, stdinW)
+		}
+
 		_, _ = io.Copy(io.Discard, in)
 
 		if !finished.Load() {
@@ -175,6 +195,25 @@ func run(req guestexec.Request, in io.Reader, w io.Writer, r *reaper) guestexec.
 		return guestexec.Result{ExitCode: -1, Error: "killed by " + ws.Signal().String()}
 	default:
 		return guestexec.Result{ExitCode: -1, Error: "ended abnormally"}
+	}
+}
+
+// feedStdin copies input frames to the command's stdin until the host closes it. If the command
+// stops reading, writes fail and the rest of the input is dropped.
+func feedStdin(in io.Reader, w *os.File) {
+	defer func() { _ = w.Close() }()
+
+	buf := make([]byte, guestexec.MaxFrame)
+
+	for {
+		kind, p, err := guestexec.ReadFrame(in, buf)
+		if err != nil || kind == guestexec.StdinClose {
+			return
+		}
+
+		if kind == guestexec.StdinData {
+			_, _ = w.Write(p)
+		}
 	}
 }
 

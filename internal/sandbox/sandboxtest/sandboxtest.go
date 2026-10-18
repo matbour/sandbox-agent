@@ -6,6 +6,7 @@ package sandboxtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -107,6 +108,19 @@ func RunWith(t *testing.T, p sandbox.Provider, workRoot string, o Options) {
 		so, se, err := sb.Exec(ctx, sandbox.ExecOptions{}, "sh", "-c", "echo out; echo err >&2; exit 3")
 		if err == nil || strings.TrimSpace(string(so)) != "out" || strings.TrimSpace(string(se)) != "err" {
 			t.Errorf("stdout %q stderr %q err %v; want out, err and an exit status error", so, se, err)
+		}
+	})
+	t.Run("stdin and streamed stdout", func(t *testing.T) {
+		var out strings.Builder
+
+		_, _, err := sb.Exec(ctx, sandbox.ExecOptions{Stdin: strings.NewReader("line one\nline two\n"), Stdout: &out},
+			"sh", "-c", "cat; echo done")
+		if errors.Is(err, sandbox.ErrNoStreaming) {
+			t.Skip(err)
+		}
+
+		if err != nil || out.String() != "line one\nline two\ndone\n" {
+			t.Errorf("streamed output %q, err %v", out.String(), err)
 		}
 	})
 	t.Run("unprivileged by default", func(t *testing.T) {

@@ -47,15 +47,21 @@ func workspaceDisk(ctx context.Context, ws, img, size string) error {
 	return mkfs(ctx, "-L", "workspace", "-m", "0", "-E", owner, "-d", tarPath, img, size)
 }
 
-// agentDisk returns a read-only ext4 image holding the guest agent binary, built once per
-// binary content and cached under cacheDir.
-func agentDisk(ctx context.Context, agent, cacheDir string) (string, error) {
-	sum, err := fileSHA256(agent)
-	if err != nil {
-		return "", fmt.Errorf("guest agent: %w", err)
+// agentDisk returns a read-only ext4 image holding the guest agent and the other tools (the
+// worker), built once per content and cached under cacheDir.
+func agentDisk(ctx context.Context, tools []string, cacheDir string) (string, error) {
+	h := sha256.New()
+
+	for _, t := range tools {
+		sum, err := fileSHA256(t)
+		if err != nil {
+			return "", fmt.Errorf("guest tools: %w", err)
+		}
+
+		_, _ = fmt.Fprintf(h, "%s %s\n", filepath.Base(t), sum)
 	}
 
-	img := filepath.Join(cacheDir, "guest-agent-"+sum[:16]+".ext4")
+	img := filepath.Join(cacheDir, "agent-"+hex.EncodeToString(h.Sum(nil))[:16]+".ext4")
 	if _, err := os.Stat(img); err == nil {
 		return img, nil
 	}
@@ -70,8 +76,10 @@ func agentDisk(ctx context.Context, agent, cacheDir string) (string, error) {
 	}
 	defer func() { _ = os.RemoveAll(stage) }()
 
-	if err := copyExecutable(agent, filepath.Join(stage, "guest-agent")); err != nil {
-		return "", err
+	for _, t := range tools {
+		if err := copyExecutable(t, filepath.Join(stage, filepath.Base(t))); err != nil {
+			return "", err
+		}
 	}
 
 	// Built under a temporary name and renamed, so a concurrent start never sees half an image.
