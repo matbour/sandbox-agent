@@ -135,8 +135,11 @@ type Provider struct {
 // Name returns "firecracker".
 func (p *Provider) Name() string { return "firecracker" }
 
-// Prepare checks that the binaries, images and /dev/kvm are there.
+// Prepare checks that the binaries, images and /dev/kvm are there, and removes the microVMs of
+// processes that died without closing them.
 func (p *Provider) Prepare(context.Context) error {
+	p.reapOrphans()
+
 	if _, err := exec.LookPath(p.c.Firecracker); err != nil {
 		return fmt.Errorf("firecracker binary: %w", err)
 	}
@@ -307,7 +310,9 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 		close(s.exited)
 	}()
 
+	// The VM's pid and its owner's, for reapOrphans after a crash.
 	_ = os.WriteFile(filepath.Join(s.dir, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0o600)
+	_ = os.WriteFile(filepath.Join(s.dir, "owner"), []byte(strconv.Itoa(os.Getpid())), 0o600)
 
 	if err := s.waitFor(ctx, 5*time.Second, func() error { _, err := os.Stat(apiSock); return err }); err != nil {
 		return fmt.Errorf("firecracker API socket: %w%s", err, s.consoleTail())
