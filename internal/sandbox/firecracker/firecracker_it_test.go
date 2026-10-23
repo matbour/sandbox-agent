@@ -102,7 +102,7 @@ func TestGuest(t *testing.T) {
 	}{
 		"root":     {sandbox.ExecOptions{User: "root"}, "id -u", "0"},
 		"hostname": {sandbox.ExecOptions{}, "hostname", "guest-check"},
-		"tools":    {sandbox.ExecOptions{}, "git --version >/dev/null && bun --version >/dev/null && claude --version >/dev/null && echo ok", "ok"},
+		"tools":    {sandbox.ExecOptions{}, "git --version >/dev/null && bun --version >/dev/null && claude --version >/dev/null && curl --version >/dev/null && echo ok", "ok"},
 		"https": {sandbox.ExecOptions{}, `bun -e 'const r = await fetch("https://api.anthropic.com/v1/messages", {method: "POST"}); console.log(r.status)'`,
 			"401"},
 	} {

@@ -96,10 +96,11 @@ the next version (N).
       conformance suite (network checks skipped on purpose); `agentd` can use it
       (`SANDBOX_PROVIDER=firecracker`). Guest agent ready 0.8 s after start. First real agent
       run through `agentd -try` with the subscription token (D43): 10.9 s end to end.
-- [ ] R1b, the rest of R1: an OCI image turned into a cached ext4 root disk per architecture
-      instead of `scripts/build-rootfs.sh`, `curl` in the image, a runner restart that kills its
-      leftover microVMs (pid files are already written). No jailer: rootless, and the layer 1
-      runtime wraps the VMM from M3 (D47).
+- [x] R1b, part (2026-11-20): `curl` in the image; `Prepare` reaps the microVMs of a dead owner
+      (checked by killing `agentd` mid-run). No jailer: rootless, and the layer 1 runtime wraps
+      the VMM from M3 (D47).
+- [ ] R1c: an OCI image (multi-arch, by digest) turned into a cached ext4 root disk per
+      architecture in Go, instead of `scripts/build-rootfs.sh`.
 - [ ] R2, worker: W's remaining items, stdin and streamed events over the guest agent (D46), the
       dev token in the guest's environment (D43), and a `fake` agent backend.
 - [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and

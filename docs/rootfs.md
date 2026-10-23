@@ -83,7 +83,7 @@ A first version on Ubuntu 24.04 with Node.js 24, Python and Claude Code installe
 - `/etc/resolv.conf` pointing to a public resolver (D44): the host's `127.0.0.53` is not reachable
   from a guest. The image has none; the guest agent writes one on a tmpfs copy of `/etc` (D46),
   and `firecracker/lib.sh` does the same for the shell scripts.
-- `curl`: not in the image, and the conformance suite uses it to check reachability.
+- Done (2026-11-20): `curl` in the image, for the agent and the conformance suite.
 - Chromium, fonts and Playwright for both architectures, for preview and screenshots (D45).
 - Done (D46): `cmd/guest-agent`, a guest init in Go that serves control over vsock.
 - A second, writable disk for the workspace.

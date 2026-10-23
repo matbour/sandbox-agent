@@ -44,8 +44,9 @@ RUN case "$TARGETARCH" in \
 FROM $ALPINE
 
 # bash for the agent's shell tool; libstdc++ and libgcc for the Bun-built binaries (Bun, Claude
-# Code); ripgrep because Claude Code's bundled one is not used on musl.
-RUN apk add --no-cache bash ca-certificates git libgcc libstdc++ ripgrep
+# Code); ripgrep because Claude Code's bundled one is not used on musl; curl for the agent and the
+# conformance suite's reachability checks.
+RUN apk add --no-cache bash ca-certificates curl git libgcc libstdc++ ripgrep
 
 COPY --from=fetch /out/ /
 
