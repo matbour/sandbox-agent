@@ -37,10 +37,16 @@ type Result struct {
 // Slack bounds the whole run beyond the worker's own limits, in case it does not enforce them.
 const Slack = time.Minute
 
+// Hooks receive the worker's output while it runs.
+type Hooks struct {
+	Events func(task.Event) // non-terminal events, already read as hostile input
+	Raw    io.Writer        // the worker's stdout as it is (a runner forwards it to the manager)
+}
+
 // Execute runs spec in a new sandbox from p on workspace, a host directory, which holds the
-// changed workspace when Execute returns (except the excluded paths). events receives the
-// worker's non-terminal events, already read as hostile input. The sandbox is always closed.
-func Execute(ctx context.Context, p sandbox.Provider, spec Spec, workspace string, events func(task.Event)) (Result, error) {
+// changed workspace when Execute returns (except the excluded paths). The sandbox is always
+// closed.
+func Execute(ctx context.Context, p sandbox.Provider, spec Spec, workspace string, h Hooks) (Result, error) {
 	var res Result
 
 	if err := p.Prepare(ctx); err != nil {
@@ -66,8 +72,13 @@ func Execute(ctx context.Context, p sandbox.Provider, spec Spec, workspace strin
 	pr, pw := io.Pipe()
 	done := make(chan task.Event, 1)
 
+	var out io.Writer = pw
+	if h.Raw != nil {
+		out = io.MultiWriter(pw, h.Raw)
+	}
+
 	go func() {
-		term := task.Read(pr, task.DefaultReadLimits, events, nil)
+		term := task.Read(pr, task.DefaultReadLimits, h.Events, nil)
 
 		_, _ = io.Copy(io.Discard, pr)
 
@@ -77,7 +88,7 @@ func Execute(ctx context.Context, p sandbox.Provider, spec Spec, workspace strin
 	limit := spec.Task.Limits.SetupTimeout() + spec.Task.Limits.AgentTimeout() + Slack
 
 	wctx, cancel := context.WithTimeout(ctx, limit)
-	_, se, err := sb.Exec(wctx, sandbox.ExecOptions{Env: spec.SecretEnv, Stdin: bytes.NewReader(in), Stdout: pw}, wh.WorkerPath())
+	_, se, err := sb.Exec(wctx, sandbox.ExecOptions{Env: spec.SecretEnv, Stdin: bytes.NewReader(in), Stdout: out}, wh.WorkerPath())
 
 	cancel()
 
