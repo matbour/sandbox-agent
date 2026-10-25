@@ -6,12 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/matbour/sandbox-agent/internal/gitops"
 	"github.com/matbour/sandbox-agent/internal/linear"
 	"github.com/matbour/sandbox-agent/internal/patch"
-	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
 // agentResult is the subset of `claude -p --output-format json` the worker reads.
@@ -74,35 +72,7 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 
 	is.Comments = comments
 
-	// Sandbox.
 	stage(ctx, dir, StageSetup)
-
-	if err := r.Sandbox.Prepare(ctx); err != nil {
-		return ex, fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
-	}
-
-	sb, err := r.Sandbox.Start(ctx, sandbox.Spec{
-		Name: "job-" + slug + "-" + strings.ReplaceAll(stamp, "-", ""), Workspace: ws,
-		CPUs: cfg.SandboxCPUs, Memory: cfg.SandboxMemory, DenyNetwork: cfg.DenyNetwork,
-	})
-	if err != nil {
-		return ex, fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
-	}
-
-	update(dir, func(st *State) { st.Sandbox, st.Provider = sb.Name(), r.Sandbox.Name() })
-
-	trimmer, _ := sb.(sandbox.CacheTrimmer)
-	if trimmer != nil {
-		if err := trimmer.TrimCache(ctx, 20*time.Second); err != nil {
-			r.Log.Warn("cache trimmer", "err", err) // memory only: not worth failing the job
-		}
-	}
-
-	defer func() {
-		if err := sb.Close(); err != nil {
-			r.Log.Warn("sandbox cleanup", "err", err)
-		}
-	}()
 
 	// The setup notes go into the prompt; the script itself runs in the sandbox.
 	notes := ""
@@ -124,20 +94,24 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 	}
 
 	// D43: with a provider that injects no key (Firecracker), the subscription token goes into the
-	// agent's environment, for this command only. sbx injects its own key through its proxy.
+	// agent's environment, for the agent only. sbx injects its own key through its proxy.
 	var agentEnv []string
 	if cfg.ClaudeToken != "" && r.Sandbox.Name() != "sbx" {
 		agentEnv = append(agentEnv, "CLAUDE_CODE_OAUTH_TOKEN="+cfg.ClaudeToken)
 	}
 
-	// A sandbox that carries the worker runs the setup and the agent through it (D33); the others
-	// are driven command by command from here.
+	name := "job-" + slug + "-" + strings.ReplaceAll(stamp, "-", "")
+	a := agentRun{name: name, prompt: prompt, model: model, env: agentEnv, dir: dir, ws: ws, logf: logf}
+
+	// With an executor (a provider that carries the worker, or remote runners), the run goes
+	// through the worker (D33, D42) and comes back with the workspace. Otherwise the sandbox is
+	// driven command by command from here.
 	run := r.runDirect
-	if wh, ok := sb.(sandbox.WorkerHost); ok && wh.WorkerPath() != "" {
-		run = r.runWorker
+	if r.Exec != nil {
+		run = r.runExecutor
 	}
 
-	if err := run(ctx, agentRun{sb: sb, trimmer: trimmer, prompt: prompt, model: model, env: agentEnv, dir: dir, logf: logf}, ex); err != nil {
+	if err := run(ctx, a, ex); err != nil {
 		return ex, err
 	}
 
@@ -147,14 +121,6 @@ func (r *Runner) execute(ctx context.Context, is linear.Issue, model, dir, repoD
 
 	// Stage the workspace against the clean clone and validate the change set.
 	stage(ctx, dir, StageValidating)
-
-	// A provider without a shared directory (Firecracker) brings the workspace back first. Build
-	// artifacts stay in the guest: they would be excluded from the change set anyway.
-	if s, ok := sb.(sandbox.Syncer); ok {
-		if err := s.SyncWorkspace(ctx, excludePatterns()); err != nil {
-			return ex, err
-		}
-	}
 
 	g := &gitops.Git{Dir: repoDir, WorkTree: ws}
 	if _, err := g.Run(ctx, "add", "--all", "--", "."); err != nil {

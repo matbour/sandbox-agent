@@ -16,6 +16,7 @@ import (
 	"github.com/matbour/sandbox-agent/internal/github"
 	"github.com/matbour/sandbox-agent/internal/job"
 	"github.com/matbour/sandbox-agent/internal/linear"
+	"github.com/matbour/sandbox-agent/internal/runner"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
 	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
@@ -104,7 +105,16 @@ func newRunner(cfg *config.Config, log *slog.Logger) (*job.Runner, error) {
 		return nil, err
 	}
 
-	return &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log, Sandbox: sp}, nil
+	return &job.Runner{Cfg: cfg, Linear: lc, App: app, Log: log, Sandbox: sp, Exec: executor(sp)}, nil
+}
+
+// executor runs jobs through the worker when the provider's sandboxes carry it (D33), in-process.
+func executor(sp sandbox.Provider) job.Executor {
+	if c, ok := sp.(sandbox.WorkerCarrier); ok && c.CarriesWorker() {
+		return runner.Local{Provider: sp}
+	}
+
+	return nil
 }
 
 func fail(log *slog.Logger, what string, err error) {

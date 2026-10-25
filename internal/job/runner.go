@@ -20,6 +20,7 @@ const Marker = "🤖 sandbox-agent"
 // Runner holds what every job needs.
 type Runner struct {
 	Sandbox sandbox.Provider // where the agent runs
+	Exec    Executor         // set: runs go through the worker, in-process or on runners (D42)
 	Cfg     *config.Config
 	Linear  *linear.Client
 	App     *github.App

@@ -135,6 +135,13 @@ type Provider struct {
 // Name returns "firecracker".
 func (p *Provider) Name() string { return "firecracker" }
 
+// CarriesWorker reports whether the worker binary is there to put in the guest.
+func (p *Provider) CarriesWorker() bool {
+	_, err := os.Stat(p.c.Worker)
+
+	return err == nil
+}
+
 // Prepare checks that the binaries, images and /dev/kvm are there, and removes the microVMs of
 // processes that died without closing them.
 func (p *Provider) Prepare(context.Context) error {

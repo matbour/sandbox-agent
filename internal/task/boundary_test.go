@@ -18,7 +18,8 @@ func TestImportBoundary(t *testing.T) {
 
 	forbidden := []string{"internal/linear", "internal/github", "internal/gitops", "internal/config", "internal/job"}
 
-	for _, pkg := range []string{"./internal/task", "./cmd/worker", "./cmd/guest-agent", "./cmd/sandbox", "./internal/guestexec"} {
+	for _, pkg := range []string{"./internal/task", "./cmd/worker", "./cmd/guest-agent", "./cmd/sandbox", "./internal/guestexec",
+		"./internal/runner"} {
 		cmd := exec.Command(gobin, "list", "-deps", pkg)
 		cmd.Dir = "../.."
 

@@ -6,26 +6,33 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/matbour/sandbox-agent/internal/runner"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 	"github.com/matbour/sandbox-agent/internal/task"
 )
 
 // agentRun is what both ways of running the agent need.
 type agentRun struct {
-	sb      sandbox.Sandbox
-	trimmer sandbox.CacheTrimmer
-	prompt  string
-	model   string
-	env     []string
-	dir     string
-	logf    func(name string, data []byte)
+	name   string // the sandbox's, and the run's ID
+	prompt string
+	model  string
+	env    []string
+	dir    string // the job directory
+	ws     string // the workspace on the host
+	logf   func(name string, data []byte)
+}
+
+// Executor runs one run through the worker: in-process on a provider (runner.Local), or on a
+// runner that leased it (D42).
+type Executor interface {
+	Name() string
+	Execute(ctx context.Context, spec runner.Spec, workspace string, events func(task.Event)) (runner.Result, error)
 }
 
 // setupTimeout bounds the setup script.
@@ -36,6 +43,31 @@ const setupTimeout = 20 * time.Minute
 func (r *Runner) runDirect(ctx context.Context, a agentRun, ex *Execution) error {
 	cfg := r.Cfg
 
+	if err := r.Sandbox.Prepare(ctx); err != nil {
+		return fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
+	}
+
+	sb, err := r.Sandbox.Start(ctx, sandbox.Spec{Name: a.name, Workspace: a.ws,
+		CPUs: cfg.SandboxCPUs, Memory: cfg.SandboxMemory, DenyNetwork: cfg.DenyNetwork})
+	if err != nil {
+		return fmt.Errorf("%s: %w", r.Sandbox.Name(), err)
+	}
+
+	update(a.dir, func(st *State) { st.Sandbox, st.Provider = sb.Name(), r.Sandbox.Name() })
+
+	defer func() {
+		if err := sb.Close(); err != nil {
+			r.Log.Warn("sandbox cleanup", "err", err)
+		}
+	}()
+
+	trimmer, _ := sb.(sandbox.CacheTrimmer)
+	if trimmer != nil {
+		if err := trimmer.TrimCache(ctx, 20*time.Second); err != nil {
+			r.Log.Warn("cache trimmer", "err", err) // memory only: not worth failing the job
+		}
+	}
+
 	if cfg.SetupScript != "" {
 		script, err := os.ReadFile(cfg.SetupScript)
 		if err != nil {
@@ -43,13 +75,13 @@ func (r *Runner) runDirect(ctx context.Context, a agentRun, ex *Execution) error
 		}
 
 		sctx, cancel := context.WithTimeout(ctx, setupTimeout)
-		so, se, err := a.sb.Exec(sctx, sandbox.ExecOptions{}, "bash", "-euo", "pipefail", "-c", string(script))
+		so, se, err := sb.Exec(sctx, sandbox.ExecOptions{}, "bash", "-euo", "pipefail", "-c", string(script))
 
 		cancel()
 		a.logf("setup.log", append(so, se...))
 
-		if a.trimmer != nil {
-			a.trimmer.DropCache(ctx) // the install read and wrote gigabytes
+		if trimmer != nil {
+			trimmer.DropCache(ctx) // the install read and wrote gigabytes
 		}
 
 		if err != nil {
@@ -68,7 +100,7 @@ func (r *Runner) runDirect(ctx context.Context, a agentRun, ex *Execution) error
 	}
 
 	actx, cancel := context.WithTimeout(ctx, cfg.AgentTimeout)
-	so, se, err := a.sb.Exec(actx, sandbox.ExecOptions{Env: a.env}, args...)
+	so, se, err := sb.Exec(actx, sandbox.ExecOptions{Env: a.env}, args...)
 
 	cancel()
 
@@ -97,13 +129,19 @@ func (r *Runner) runDirect(ctx context.Context, a agentRun, ex *Execution) error
 		return fmt.Errorf("agent stopped (%s): %s", res.Subtype, truncate(res.Result, 2000))
 	}
 
+	// A provider without a shared directory brings the workspace back first.
+	if s, ok := sb.(sandbox.Syncer); ok {
+		return s.SyncWorkspace(ctx, excludePatterns())
+	}
+
 	return nil
 }
 
-// runWorker sends the task to the worker in the sandbox and reads its events as hostile input
-// (task.Read). Events go to events.jsonl in the job directory, and thoughts to the reporter,
-// throttled. The terminal event becomes ex.agent, so what follows does not change.
-func (r *Runner) runWorker(ctx context.Context, a agentRun, ex *Execution) error {
+// runExecutor sends the run to the executor. The worker's events are hostile input, already
+// read by task.Read on the executor's side; here they go to events.jsonl in the job directory,
+// each checked for the subscription token first, and thoughts to the reporter, throttled. The
+// terminal event becomes ex.agent, so what follows does not change.
+func (r *Runner) runExecutor(ctx context.Context, a agentRun, ex *Execution) error {
 	cfg := r.Cfg
 
 	script := ""
@@ -118,17 +156,16 @@ func (r *Runner) runWorker(ctx context.Context, a agentRun, ex *Execution) error
 
 	budget, _ := strconv.ParseFloat(cfg.AgentBudgetUSD, 64)
 
-	in, err := json.Marshal(task.Task{
-		Prompt: a.prompt, Model: a.model, Agent: cfg.AgentBackend, Setup: script,
-		Limits: task.Limits{MaxTurns: cfg.AgentMaxTurns, BudgetUSD: budget,
-			AgentTimeoutSec: int(cfg.AgentTimeout.Seconds()), SetupTimeoutSec: int(setupTimeout.Seconds())},
-	})
-	if err != nil {
-		return err
+	spec := runner.Spec{
+		ID: a.name, CPUs: cfg.SandboxCPUs, Memory: cfg.SandboxMemory, Exclude: excludePatterns(), SecretEnv: a.env,
+		Task: task.Task{Prompt: a.prompt, Model: a.model, Agent: cfg.AgentBackend, Setup: script,
+			Limits: task.Limits{MaxTurns: cfg.AgentMaxTurns, BudgetUSD: budget,
+				AgentTimeoutSec: int(cfg.AgentTimeout.Seconds()), SetupTimeoutSec: int(setupTimeout.Seconds())}},
 	}
 
 	stage(ctx, a.dir, StageAgent)
 	a.logf("prompt.md", []byte(a.prompt))
+	update(a.dir, func(st *State) { st.Sandbox, st.Provider = a.name, r.Exec.Name() })
 
 	log, err := os.OpenFile(filepath.Join(a.dir, "events.jsonl"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -136,48 +173,27 @@ func (r *Runner) runWorker(ctx context.Context, a agentRun, ex *Execution) error
 	}
 	defer func() { _ = log.Close() }()
 
-	ev := &eventSink{r: r, ctx: ctx, log: json.NewEncoder(log), secret: cfg.ClaudeToken}
+	ev := &eventSink{ctx: ctx, log: json.NewEncoder(log), secret: cfg.ClaudeToken}
 
-	pr, pw := io.Pipe()
-	done := make(chan task.Event, 1)
+	res, err := r.Exec.Execute(ctx, spec, a.ws, ev.event)
 
-	go func() {
-		term := task.Read(pr, task.DefaultReadLimits, ev.event, func(d task.Dropped) {
-			r.Log.Warn("worker event dropped", "line", d.Line, "reason", d.Reason)
-		})
-
-		_, _ = io.Copy(io.Discard, pr)
-
-		done <- term
-	}()
-
-	// The worker enforces the setup and agent limits; this bounds the whole run if it does not.
-	wctx, cancel := context.WithTimeout(ctx, setupTimeout+cfg.AgentTimeout+time.Minute)
-	_, se, err := a.sb.Exec(wctx, sandbox.ExecOptions{Env: a.env, Stdin: bytes.NewReader(in), Stdout: pw}, a.sb.(sandbox.WorkerHost).WorkerPath())
-
-	cancel()
-
-	_ = pw.Close()
-	term := <-done
-
-	if ev.leaked || leaks(cfg.ClaudeToken, se, []byte(term.Title), []byte(term.Body), []byte(term.Question), []byte(term.Reason)) {
+	term := res.Terminal
+	if ev.leaked || leaks(cfg.ClaudeToken, res.Log, []byte(term.Title), []byte(term.Body), []byte(term.Question), []byte(term.Reason)) {
 		return errSecretLeak
 	}
 
+	if err != nil {
+		return err
+	}
+
 	ev.event(term)
-	a.logf("worker.log", se)
+	a.logf("worker.log", res.Log)
 
 	ex.CostUSD, ex.Turns = term.CostUSD, term.Turns
 	ex.agent.CostUSD, ex.agent.Turns = term.CostUSD, term.Turns
 
-	switch {
-	case errors.Is(wctx.Err(), context.DeadlineExceeded):
-		return fmt.Errorf("the worker did not finish within %s", setupTimeout+cfg.AgentTimeout+time.Minute)
-	case term.Kind == task.KindFail:
+	if term.Kind == task.KindFail {
 		return fmt.Errorf("agent: %s", truncate(term.Reason, 2000))
-	case err != nil:
-		// A worker that exits non-zero after done does not get the benefit of the doubt (D33).
-		return fmt.Errorf("worker: %w: %s", err, truncate(lastLines(string(se), 20), 2000))
 	}
 
 	ex.agent.Result = finalMessage(term)
@@ -208,7 +224,6 @@ func finalMessage(e task.Event) string {
 // eventSink logs the worker's events and forwards thoughts to the reporter, at most one every
 // thoughtEvery, so a chatty agent does not flood Linear.
 type eventSink struct {
-	r      *Runner
 	ctx    context.Context
 	log    *json.Encoder
 	secret string

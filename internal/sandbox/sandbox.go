@@ -49,6 +49,12 @@ type ExecOptions struct {
 // ErrNoStreaming is returned by providers that cannot stream stdin or stdout yet.
 var ErrNoStreaming = errors.New("this provider cannot stream stdin or stdout")
 
+// WorkerCarrier is implemented by providers whose sandboxes carry the worker (WorkerHost), so runs
+// can go through it from the start (internal/runner).
+type WorkerCarrier interface {
+	CarriesWorker() bool
+}
+
 // WorkerHost is implemented by sandboxes that carry the worker binary (cmd/worker), read-only,
 // for the manager to run (D33).
 type WorkerHost interface {

@@ -35,7 +35,7 @@ func runTry(ctx context.Context, cfg *config.Config, log *slog.Logger, repo, tas
 		return err
 	}
 
-	r := &job.Runner{Cfg: cfg, Log: log, Sandbox: sp}
+	r := &job.Runner{Cfg: cfg, Log: log, Sandbox: sp, Exec: executor(sp)}
 	if model == "" {
 		model = cfg.AgentModel
 	}
