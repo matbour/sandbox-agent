@@ -82,9 +82,20 @@ func agentDisk(ctx context.Context, tools []string, cacheDir string) (string, er
 		}
 	}
 
-	// Built under a temporary name and renamed, so a concurrent start never sees half an image.
-	tmp := img + ".tmp" + fmt.Sprint(os.Getpid())
+	// Built under a name of its own and renamed, so a concurrent start never sees half an image.
+	// Starts in one process share the pid: the name must not come from it. Two builds give the
+	// same content, so whichever rename lands last is fine.
+	f, err := os.CreateTemp(cacheDir, "agent-*.ext4.tmp")
+	if err != nil {
+		return "", err
+	}
+
+	tmp := f.Name()
+	_ = f.Close()
+
 	if err := mkfs(ctx, "-L", "agent", "-m", "0", "-O", "^has_journal", "-d", stage, tmp, "64M"); err != nil {
+		_ = os.Remove(tmp)
+
 		return "", err
 	}
 
