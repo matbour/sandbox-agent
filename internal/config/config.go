@@ -18,6 +18,8 @@ type Config struct {
 	LinearSecret   string
 	LinearHookKey  string        // Linear webhook signing secret; empty disables the webhook route
 	WebAddr        string        // loopback address of the HTTP server; empty disables it
+	RunnerAddr     string        // address of the runners' API (D42); empty: runs stay in-process
+	SecretsDir     string        // where the secrets were read from
 	AccessTeam     string        // Cloudflare Access team name, for the overview behind the tunnel
 	AccessAUD      string        // Cloudflare Access application audience tag
 	OverviewURL    string        // public URL of the overview, linked from Linear agent sessions
@@ -151,6 +153,8 @@ func load(secretsDir string, full bool) (*Config, error) {
 		LinearSecret:   linearSecret,
 		LinearHookKey:  linearHook,
 		WebAddr:        get("WEB_ADDR", "127.0.0.1:8787"),
+		RunnerAddr:     get("RUNNER_ADDR", ""),
+		SecretsDir:     secretsDir,
 		AccessTeam:     get("ACCESS_TEAM", ""),
 		AccessAUD:      get("ACCESS_AUD", ""),
 		OverviewURL:    get("OVERVIEW_URL", ""),
