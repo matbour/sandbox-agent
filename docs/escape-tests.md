@@ -111,7 +111,7 @@ relays.
 | --- | --- | --- |
 | E-RUNNER-1 | No token, a revoked token, or plain HTTP from another host | Refused. Token: `internal/runnerapi` test; plain HTTP: refused by the runner (`CheckURL`) |
 | E-RUNNER-2 | `input`, `output`, `workspace`, `end` or `heartbeat` for another runner's lease | Refused, nothing recorded. `internal/runnerapi` test |
-| E-RUNNER-3 | Calls for an expired or finished lease | Refused, late events dropped |
+| E-RUNNER-3 | Calls for an expired or finished lease | Refused, late events dropped. `internal/runnerapi` test |
 | E-RUNNER-4 | A change set with `..`, absolute paths, `.git/`, symlinks, denied paths or over the limits | Rejected by the manager's validator, as E-OUT |
 | E-RUNNER-5 | A change set or event stream over the size limit | Upload cut off, the run fails |
 | E-RUNNER-6 | Replayed `output` with the same byte offset (D48) | Counted once; a gap refused. `internal/runnerapi` test |

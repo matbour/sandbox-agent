@@ -117,15 +117,17 @@ the next version (N).
       architectures, the `SCREENSHOTS:` capture step, `artifact` events, upload to Linear and the
       overview.
 - [ ] R7, failures: lease expiry, runner and manager restarts mid-run, Stop during a run. Each one
-      exercised once and recorded. Done: a lease lost before any output is queued again and run by
-      another runner (unit test); a dead agentd's microVMs are reaped (R1b). Left: a runner
-      restarting mid-run, the manager restarting mid-run (runs are in memory until R3's store),
-      Stop from Linear through the heartbeat (the path exists, not exercised).
+      exercised once and recorded. Done (unit tests in `internal/runnerapi`): a lease lost before any
+      output is queued again and run by another runner; one lost after output fails the job and
+      is not retried; a cancel on the manager reaches the runner through its next heartbeat and
+      stops the sandbox. A dead agentd's microVMs are reaped (R1b). Left: the manager restarting
+      mid-run (runs are in memory until R3's store), and each case once with real microVMs.
 - [ ] R8, fast starts: snapshot and restore per image and architecture, warm pool; measure lease to
       first guest instruction, restore against cold boot, memory per idle microVM, on both machines
       ([benchmarks.md](benchmarks.md)).
 - [ ] E-RUNNER tests ([escape-tests.md](escape-tests.md)) pass. Covered by unit tests: 1 (token),
-      2 (foreign lease), 6 (replayed output), 7 (protocol). Left: 3, 4 and 5 as explicit tests.
+      2 (foreign lease), 3 (expired lease), 6 (replayed output), 7 (protocol). Left: 4 and 5 as
+      explicit tests (the code paths are Mirror's limits and the output size limit).
 
 ## P: sandbox providers (from 2026-11-13)
 

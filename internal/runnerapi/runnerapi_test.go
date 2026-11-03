@@ -334,3 +334,111 @@ func TestCheckURL(t *testing.T) {
 		}
 	}
 }
+
+// Cancelling a run on the manager (a Stop from Linear, a timeout) reaches the runner through its
+// next heartbeat, and the runner stops the sandbox (R7).
+func TestCancelReachesTheRunner(t *testing.T) {
+	f := newFixture(t, "r")
+	p := &slowProvider{started: make(chan struct{}), stopped: make(chan struct{})}
+
+	a := &Agent{Manager: f.url, Token: f.tokens["r"], Name: "r", Provider: p, Capacity: Capacity{CPUs: 1, MemoryMiB: 1024}, WorkDir: t.TempDir()}
+	go func() { _ = a.Run(f.ctx) }()
+
+	ctx, cancel := context.WithCancel(f.ctx)
+	errc := make(chan error, 1)
+
+	go func() {
+		_, err := f.srv.Execute(ctx, runner.Spec{ID: "run-stop", CPUs: 1, Memory: "1g"}, workspace(t), nil)
+		errc <- err
+	}()
+
+	<-p.started
+	cancel()
+
+	if err := <-errc; err == nil {
+		t.Error("Execute returned no error after cancel")
+	}
+
+	select {
+	case <-p.stopped:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the runner did not stop the sandbox after the cancel")
+	}
+}
+
+// slowProvider's worker runs until it is cancelled.
+type slowProvider struct {
+	started chan struct{}
+	stopped chan struct{}
+}
+
+func (p *slowProvider) Name() string                  { return "slow-test" }
+func (p *slowProvider) Prepare(context.Context) error { return nil }
+func (p *slowProvider) Start(_ context.Context, s sandbox.Spec) (sandbox.Sandbox, error) {
+	return &slowSandbox{p: p, name: s.Name}, nil
+}
+
+type slowSandbox struct {
+	p    *slowProvider
+	name string
+}
+
+func (s *slowSandbox) Name() string       { return s.name }
+func (s *slowSandbox) WorkDir() string    { return "/" }
+func (s *slowSandbox) WorkerPath() string { return "/worker" }
+func (s *slowSandbox) Close() error       { return nil }
+
+func (s *slowSandbox) Exec(ctx context.Context, o sandbox.ExecOptions, _ ...string) ([]byte, []byte, error) {
+	_, _ = io.Copy(io.Discard, o.Stdin)
+	_, _ = fmt.Fprintln(o.Stdout, `{"kind":"thought","text":"working for ever"}`)
+
+	close(s.p.started)
+	<-ctx.Done()
+	close(s.p.stopped)
+
+	return nil, nil, ctx.Err()
+}
+
+// A runner that disappears after the worker produced output: the run is not tried again (the
+// agent may already have spent money), the job gets an error (runners.md, Failures).
+func TestLostAfterOutput(t *testing.T) {
+	f := newFixture(t, "ghost")
+
+	errc := make(chan error, 1)
+
+	go func() {
+		_, err := f.srv.Execute(f.ctx, runner.Spec{ID: "run-gone", CPUs: 1, Memory: "1g"}, workspace(t), nil)
+		errc <- err
+	}()
+
+	var l Lease
+
+	for l.ID == "" {
+		req, _ := http.NewRequest(http.MethodPost, f.url+"/v1/lease", strings.NewReader(`{"free":{"cpus":1,"memory_mib":1024}}`))
+		req.Header.Set("Authorization", "Bearer "+f.tokens["ghost"])
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_ = json.NewDecoder(resp.Body).Decode(&l)
+		_ = resp.Body.Close()
+	}
+
+	_ = post(t, f.url+"/v1/runs/run-gone/output?offset=0", f.tokens["ghost"], l.ID, []byte(`{"kind":"thought","text":"started"}`+"\n"))
+
+	select {
+	case err := <-errc:
+		if err == nil || !strings.Contains(err.Error(), "lost") {
+			t.Errorf("err %v, want a lost run", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("the lost run never ended")
+	}
+
+	// E-RUNNER-3: the lease is gone, late output is refused.
+	if r := post(t, f.url+"/v1/runs/run-gone/output?offset=36", f.tokens["ghost"], l.ID, []byte("late")); r.StatusCode != http.StatusConflict {
+		t.Errorf("late output after the lease was lost: %d", r.StatusCode)
+	}
+}
