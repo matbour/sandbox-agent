@@ -25,7 +25,7 @@ to work out, and mark anything not verified as "to verify".
 
 | Directory | What it holds |
 | --- | --- |
-| `cmd/`, `internal/` | Go: `agentd`, `guest-agent` (PID 1 of a Firecracker guest, D46), `sandbox`, and `vsock-to-anthropic` and `loopback-to-vsock` (shelved, D44), with their packages |
+| `cmd/`, `internal/` | Go: `agentd` (manager), `runnerd` (runner, D48), `worker` (in the sandbox, D33), `guest-agent` (PID 1 of a Firecracker guest, D46), `sandbox`, and `vsock-to-anthropic` and `loopback-to-vsock` (shelved, D44), with their packages |
 | `images/` | Dockerfiles of the agent rootfs and the tools container, shared by every runtime ([rootfs.md](rootfs.md)) |
 | `firecracker/` | Everything specific to Firecracker: `lib.sh` (kernel, disks, VM config, proxy, run), the run scripts, and `guest/` for what runs inside the VM ([microvm.md](microvm.md)) |
 | `bench/` | Benchmarks that compare runtimes ([benchmarks.md](benchmarks.md)) |

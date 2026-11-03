@@ -198,6 +198,9 @@ the tap: control does not depend on the network that the next version closes.
 
 ## Manager and runner protocol
 
+As built (D48): `internal/runnerapi`. The raw worker output travels by byte offset rather than as
+numbered events, and the whole workspace comes back rather than a change set; see D48 for why.
+
 HTTPS with JSON bodies, Go standard library on both sides. The runner always dials out, so runners
 need no open port and can sit behind NAT. Each runner has its own token, stored on the runner host
 under `secrets/`; the manager keeps a hash per runner ID and can revoke one.

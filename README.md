@@ -87,6 +87,25 @@ Try the sandbox part on a local repository, without Linear or GitHub:
 bin/agentd -try ~/some/repo -task "Describe the change" [-model claude-opus-5-5]
 ```
 
+## Runners
+
+Runs can go to `runnerd` processes, on this machine or others (D42, D48). On the manager:
+
+```bash
+bin/agentd -add-runner desktop -token-out secrets/runner-token   # the token goes to the file only
+RUNNER_ADDR=127.0.0.1:8788 bin/agentd ...                         # serve the runners' API
+```
+
+On the runner's machine (the token file copied there, mode 600):
+
+```bash
+bin/runnerd -manager http://127.0.0.1:8788 -token-file secrets/runner-token -name desktop \
+    -cpus 4 -memory 8192 -cpuset 4-7
+```
+
+Plain HTTP is only accepted to a loopback address; a runner on another machine needs HTTPS in
+front of the manager (to set up, roadmap R5).
+
 ## Development
 
 ```bash

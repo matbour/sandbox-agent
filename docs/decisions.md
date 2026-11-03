@@ -582,3 +582,31 @@ plans a rootless runtime that does the same job (layer 1, M3: user and mount nam
   the VMM would act as that account. Accepted for the development phase, with D43 and D44.
 - From M3, the layer 1 runtime wraps the VMM (one namespace set, cgroup and Landlock domain per
   VM), as `microvm.md` already planned ("our runtime can play its role").
+
+## D48. The runner protocol as built: runs, raw output by offset, whole workspace back (2026-11-20)
+
+How R4 implements D42 (`internal/runner`, `internal/runnerapi`, `cmd/runnerd`), and where it
+differs from the text of `runners.md`:
+
+- The unit is a **run**: one sandbox, the worker, its output, the workspace back. The job hands it
+  to an `Executor`: `runner.Local` (in-process, Firecracker) or the runners' queue, which is the
+  same interface served over HTTP. `sbx`, which carries no worker, keeps the direct path.
+- The runner forwards the worker's **raw stdout**, in batches, each with its byte offset. The
+  manager runs `task.Read` on it itself, so a runner gets no more trust than the worker (D42), and
+  a retried batch is counted once while a gap is refused (E-RUNNER-6). D42 had "events with a
+  sequence number"; offsets over the raw stream give the same with nothing to parse on the runner.
+- The workspace comes back **whole** (minus the build artifacts of the job's exclude list) as a tar
+  stream, applied with `guestexec.Mirror`, and the job diffs it against its clean clone as before.
+  D42 had a change set computed on the runner against a pristine copy: the whole tree is simpler,
+  needs no second copy on the runner, and the manager does the diff it trusts anyway.
+- Scheduling is first fit in queue order against the free capacity the runner reports with each
+  lease request (vCPUs, MiB); the runner counts what it runs. The bin-packing preferences of D42
+  (previous runner first, least room left) are not implemented.
+- `agentd` serves the API on `RUNNER_ADDR`, in plain HTTP. Runners refuse plain HTTP to anything
+  but loopback, so a runner on another machine needs TLS in front of the manager: how is R5 (the
+  tunnel, or a certificate on the LAN; private notes).
+- Tokens: `agentd -add-runner <name> -token-out <file>` writes a random token to the file (0600)
+  and its SHA-256 to `secrets/runner-tokens`. The runner's name is the token's, whatever it claims.
+- Checked on the development machine: `agentd -try` through `runnerd` over loopback, with the fake
+  backend and with Claude Code (12 s); and eight microVM runs at once on two runners of 3 and 1
+  vCPUs, in two waves of four, 5.8 s in all (`TestFirecrackerFleet`).

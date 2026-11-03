@@ -17,6 +17,8 @@ import (
 //	secrets/anthropic-api-key  Anthropic API key, read by vsock-to-anthropic only
 //	secrets/claude-oauth-token Claude subscription token (claude setup-token), development phase
 //	                         only: set in the guest for providers without key injection (D43)
+//	secrets/runner-tokens    on the manager: "<runner> <sha256 of its token>" lines (D48)
+//	secrets/runner-token     on a runner: its own token, read by runnerd
 //
 // The directory and every file read from it must not be accessible to group or others.
 const (

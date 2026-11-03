@@ -101,25 +101,31 @@ the next version (N).
       the VMM from M3 (D47).
 - [ ] R1c: an OCI image (multi-arch, by digest) turned into a cached ext4 root disk per
       architecture in Go, instead of `scripts/build-rootfs.sh`.
-- [ ] R2, worker: W's remaining items, stdin and streamed events over the guest agent (D46), the
-      dev token in the guest's environment (D43), and a `fake` agent backend.
+- [x] R2, worker (2026-11-20): stdin and streamed events over the guest agent (D46), the dev token
+      in the guest's environment (D43), and a `fake` agent backend. See milestone W for the rest.
 - [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and
       outbox, secret scan of outputs; waiting for CI becomes a step with a timer. Decide the store
       (D23 does not fit leases) and the project file format.
-- [ ] R4, runner over HTTPS: `cmd/runnerd`, per-runner tokens, register, lease, heartbeat,
-      cancellation, sequence numbers; `agentd` and `runnerd` on one machine over loopback.
-      `agentd -try` becomes `runnerd -try`. Import test extended (D42).
+- [x] R4, runners (2026-11-20, D48): `cmd/runnerd`, per-runner tokens, register, lease (long
+      poll), heartbeat, cancellation, output by byte offset, workspace back as a tar stream;
+      `agentd` and `runnerd` on one machine over loopback; import test extended. Eight microVM runs
+      at once on two runners pass (`TestFirecrackerFleet`). Left: TLS for runners on other
+      machines (R5); `agentd -try` stays in agentd (it starts the API when `RUNNER_ADDR` is set).
 - [ ] R5, two machines: decide how a runner reaches the manager (private notes) and the board's
       network (D44); scheduling by resources and `requires`; two runs at once on arm64 and amd64.
 - [ ] R6, preview and screenshots (D45): Chromium and Playwright in the image for both
       architectures, the `SCREENSHOTS:` capture step, `artifact` events, upload to Linear and the
       overview.
 - [ ] R7, failures: lease expiry, runner and manager restarts mid-run, Stop during a run. Each one
-      exercised once and recorded.
+      exercised once and recorded. Done: a lease lost before any output is queued again and run by
+      another runner (unit test); a dead agentd's microVMs are reaped (R1b). Left: a runner
+      restarting mid-run, the manager restarting mid-run (runs are in memory until R3's store),
+      Stop from Linear through the heartbeat (the path exists, not exercised).
 - [ ] R8, fast starts: snapshot and restore per image and architecture, warm pool; measure lease to
       first guest instruction, restore against cold boot, memory per idle microVM, on both machines
       ([benchmarks.md](benchmarks.md)).
-- [ ] E-RUNNER tests ([escape-tests.md](escape-tests.md)) pass.
+- [ ] E-RUNNER tests ([escape-tests.md](escape-tests.md)) pass. Covered by unit tests: 1 (token),
+      2 (foreign lease), 6 (replayed output), 7 (protocol). Left: 3, 4 and 5 as explicit tests.
 
 ## P: sandbox providers (from 2026-11-13)
 

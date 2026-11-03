@@ -109,13 +109,13 @@ relays.
 
 | ID | Runner request | Expected |
 | --- | --- | --- |
-| E-RUNNER-1 | No token, a revoked token, or plain HTTP from another host | Refused |
-| E-RUNNER-2 | `input`, `events`, `result` or `heartbeat` for another runner's lease | Refused, nothing recorded |
+| E-RUNNER-1 | No token, a revoked token, or plain HTTP from another host | Refused. Token: `internal/runnerapi` test; plain HTTP: refused by the runner (`CheckURL`) |
+| E-RUNNER-2 | `input`, `output`, `workspace`, `end` or `heartbeat` for another runner's lease | Refused, nothing recorded. `internal/runnerapi` test |
 | E-RUNNER-3 | Calls for an expired or finished lease | Refused, late events dropped |
 | E-RUNNER-4 | A change set with `..`, absolute paths, `.git/`, symlinks, denied paths or over the limits | Rejected by the manager's validator, as E-OUT |
 | E-RUNNER-5 | A change set or event stream over the size limit | Upload cut off, the run fails |
-| E-RUNNER-6 | Replayed `events` with the same sequence numbers | Counted once |
-| E-RUNNER-7 | `register` with an unknown protocol version | Refused |
+| E-RUNNER-6 | Replayed `output` with the same byte offset (D48) | Counted once; a gap refused. `internal/runnerapi` test |
+| E-RUNNER-7 | `register` with an unknown protocol version | Refused. `internal/runnerapi` test |
 
 ## Webhook (E-HOOK), run against the receiver
 

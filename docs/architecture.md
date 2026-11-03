@@ -39,6 +39,8 @@ Mentions without a pull request start a research run that changes nothing (D27).
 | Agent | Inside the VM | No | Claude Code, non-interactive ([agents.md](agents.md)) |
 | Provider `firecracker` | Host | No | One Firecracker microVM per job, `SANDBOX_PROVIDER=firecracker` (R1, D46, [microvm.md](microvm.md)) |
 | `guest-agent` | Inside the microVM | No | PID 1 of a Firecracker guest: runs commands and returns the workspace over vsock (D46) |
+| `worker` | Inside the microVM | The dev token, in its environment (D43) | Runs the setup and the agent, emits the run's events (D33) |
+| `runnerd` | Any machine that runs jobs | Its runner token | Leases runs from `agentd` (`RUNNER_ADDR`), runs them in microVMs (D42, D48) |
 | `bin/sandbox` | — | — | Stub. Becomes the layer 1 runtime (M3, [sandbox.md](sandbox.md)) |
 | `vsock-to-anthropic` | Host | Anthropic key (`secrets/anthropic-api-key`) | First version of the M4 proxy (D40, D41). Shelved for the development phase (D44) |
 | `loopback-to-vsock` | Inside the microVM | No | Relays `127.0.0.1:8080` to the host over vsock. Shelved (D44) |
