@@ -19,6 +19,7 @@ type Config struct {
 	LinearHookKey  string        // Linear webhook signing secret; empty disables the webhook route
 	WebAddr        string        // loopback address of the HTTP server; empty disables it
 	RunnerAddr     string        // address of the runners' API (D42); empty: runs stay in-process
+	Concurrency    int           // jobs at once; 1 unless the runs go to Firecracker or runners
 	SecretsDir     string        // where the secrets were read from
 	AccessTeam     string        // Cloudflare Access team name, for the overview behind the tunnel
 	AccessAUD      string        // Cloudflare Access application audience tag
@@ -194,10 +195,10 @@ func load(secretsDir string, full bool) (*Config, error) {
 	}
 
 	for k, dst := range map[string]*int{
-		"SANDBOX_CPUS": &c.SandboxCPUs, "AGENT_MAX_TURNS": &c.AgentMaxTurns,
+		"SANDBOX_CPUS": &c.SandboxCPUs, "AGENT_MAX_TURNS": &c.AgentMaxTurns, "CONCURRENCY": &c.Concurrency,
 		"MAX_FILES": &c.MaxFiles, "MAX_PATCH_BYTES": &c.MaxPatchBytes, "CI_FIX_ATTEMPTS": &c.CIFixAttempts,
 	} {
-		def := map[string]string{"SANDBOX_CPUS": "4", "AGENT_MAX_TURNS": "150",
+		def := map[string]string{"SANDBOX_CPUS": "4", "AGENT_MAX_TURNS": "150", "CONCURRENCY": "1",
 			"MAX_FILES": "200", "MAX_PATCH_BYTES": "2000000", "CI_FIX_ATTEMPTS": "2"}[k]
 		if *dst, err = strconv.Atoi(get(k, def)); err != nil {
 			return nil, fmt.Errorf("%s: %w", k, err)

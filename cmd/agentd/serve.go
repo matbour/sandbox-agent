@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/matbour/sandbox-agent/internal/config"
@@ -15,7 +16,7 @@ import (
 )
 
 // daemon is the long-running service: it polls Linear, serves webhooks and the overview, and runs
-// one job at a time.
+// up to CONCURRENCY jobs at once (one by default).
 type daemon struct {
 	cfg *config.Config
 	r   *job.Runner
@@ -24,12 +25,60 @@ type daemon struct {
 	meID, meName string         // the agent's Linear identity
 	mention      *regexp.Regexp // nil: mentions disabled
 	wake         chan struct{}  // a webhook asks for a poll now
+
+	slots    chan struct{}   // one token per job allowed at once
+	jobs     sync.WaitGroup  // jobs in flight, waited for on stop
+	mu       sync.Mutex      // guards inFlight
+	inFlight map[string]bool // issues with a job running, so a poll does not start them twice
+}
+
+// spawn runs fn as a job for key (an issue) when a slot is free, unless key already has one in
+// flight. It blocks while every slot is taken, so polling waits instead of piling up jobs.
+func (d *daemon) spawn(ctx context.Context, key string, fn func()) {
+	d.mu.Lock()
+	if d.inFlight[key] {
+		d.mu.Unlock()
+
+		return
+	}
+
+	d.inFlight[key] = true
+	d.mu.Unlock()
+
+	select {
+	case d.slots <- struct{}{}:
+	case <-ctx.Done():
+		d.done(key)
+
+		return
+	}
+
+	d.jobs.Add(1)
+
+	go func() {
+		defer func() {
+			<-d.slots
+			d.done(key)
+			d.jobs.Done()
+			d.poke() // a slot is free: look for more work
+		}()
+
+		fn()
+	}()
+}
+
+func (d *daemon) done(key string) {
+	d.mu.Lock()
+	delete(d.inFlight, key)
+	d.mu.Unlock()
 }
 
 // serve runs the service until ctx is cancelled (or after one pass with once). A job runs on its
 // own context: a stop request lets the current job finish, then the loop exits.
 func serve(ctx context.Context, r *job.Runner, once bool) error {
-	d := &daemon{cfg: r.Cfg, r: r, log: r.Log, wake: make(chan struct{}, 1)}
+	d := &daemon{cfg: r.Cfg, r: r, log: r.Log, wake: make(chan struct{}, 1),
+		slots: make(chan struct{}, max(r.Cfg.Concurrency, 1)), inFlight: map[string]bool{}}
+	defer d.jobs.Wait() // a stop request lets the jobs in flight finish
 	if n, err := job.Import(d.cfg.StateDir); err != nil {
 		d.log.Warn("import old job status files", "err", err)
 	} else if n > 0 {
@@ -43,7 +92,8 @@ func serve(ctx context.Context, r *job.Runner, once bool) error {
 	}
 
 	d.log.Info("agentd started", "sandbox", r.Sandbox.Name(), "repo", d.cfg.Repo, "labels", d.cfg.Labels(),
-		"default_model", d.cfg.AgentModel, "teams", d.cfg.TeamKeys, "every", d.cfg.PollInterval)
+		"default_model", d.cfg.AgentModel, "teams", d.cfg.TeamKeys, "every", d.cfg.PollInterval,
+		"concurrency", cap(d.slots))
 
 	for {
 		d.runLabelledIssues(ctx)
@@ -99,21 +149,35 @@ func (d *daemon) runLabelledIssues(ctx context.Context) {
 			return
 		}
 
-		d.log.Info("job starting; a stop request now waits for it to finish", "issue", is.Identifier)
-		d.r.Handle(context.WithoutCancel(ctx), is)
+		d.spawn(ctx, is.Identifier, func() {
+			d.log.Info("job starting; a stop request now waits for it to finish", "issue", is.Identifier)
+			d.r.Handle(context.WithoutCancel(ctx), is)
+		})
 	}
 }
 
-// runSessions handles the queued agent sessions, one at a time; the rest stay visible in the queue.
+// runSessions handles the queued agent sessions as slots free up; the rest stay visible in the
+// queue. A session is taken from the queue only once it has a slot.
 func (d *daemon) runSessions(ctx context.Context) {
 	for ctx.Err() == nil {
+		select {
+		case d.slots <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
+
 		sess, ok := job.TakeSession(d.cfg.StateDir)
+
+		<-d.slots
+
 		if !ok {
 			return
 		}
 
-		d.log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
-		d.r.HandleSession(context.WithoutCancel(ctx), sess, d.cfg.OverviewURL, d.meID)
+		d.spawn(ctx, "session:"+sess.ID, func() {
+			d.log.Info("agent session", "session", sess.ID, "action", sess.Action, "issue", sess.Issue)
+			d.r.HandleSession(context.WithoutCancel(ctx), sess, d.cfg.OverviewURL, d.meID)
+		})
 	}
 }
 
@@ -148,7 +212,7 @@ func (d *daemon) runMentions(ctx context.Context) {
 			continue
 		}
 
-		d.r.HandleMention(context.WithoutCancel(ctx), c)
+		d.spawn(ctx, "mention:"+c.ID, func() { d.r.HandleMention(context.WithoutCancel(ctx), c) })
 	}
 }
 

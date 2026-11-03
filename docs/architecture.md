@@ -130,7 +130,7 @@ All host credentials are files in `secrets/` at the repository root, ignored by 
 | CPU | `SANDBOX_CPUS` 4, VM threads on cores 4-7 | `sbx` daemon pinned by `agentd` |
 | Memory | `SANDBOX_MEMORY` 6g, page cache dropped (D29) | `sbx` |
 | CI wait | `CI_TIMEOUT` 25 min, 2 fix passes | `agentd` |
-| Concurrency | One job at a time | `agentd` |
+| Concurrency | `CONCURRENCY`, 1: one job at a time. Raise it only with Firecracker or runners, whose capacity bounds the runs | `agentd`, then each runner's capacity (D48) |
 
 ## Deployment
 
