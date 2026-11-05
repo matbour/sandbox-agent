@@ -38,7 +38,11 @@ type Agent struct {
 	mu     sync.Mutex
 	used   Capacity
 	active map[string]context.CancelFunc // lease ID → cancel
+	beat   time.Duration                 // heartbeat interval: a third of the shortest lease TTL
 }
+
+// maxBeat is the longest interval between heartbeats.
+const maxBeat = 5 * time.Second
 
 // CheckURL refuses plain HTTP to anything but loopback: the token and the code travel on it.
 func CheckURL(raw string) error {
@@ -77,6 +81,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	a.active = map[string]context.CancelFunc{}
+	a.beat = maxBeat
 
 	if err := os.MkdirAll(a.WorkDir, 0o700); err != nil {
 		return err
@@ -162,6 +167,10 @@ func (a *Agent) take(l *Lease) {
 	mem, _ := MemoryMiB(l.Spec.Memory)
 
 	a.mu.Lock()
+	if b := time.Duration(l.TTLSeconds) * time.Second / 3; b > 0 && b < a.beat {
+		a.beat = max(b, 200*time.Millisecond)
+	}
+
 	a.used.CPUs += max(l.Spec.CPUs, 1)
 	a.used.MemoryMiB += mem
 	a.mu.Unlock()
@@ -192,17 +201,22 @@ func (a *Agent) lease(ctx context.Context, free Capacity) (*Lease, error) {
 	return &l, nil
 }
 
-// heartbeats extends the leases held and stops the runs the manager cancelled.
+// heartbeats extends the leases held, at a third of their TTL, and stops the runs the manager
+// cancelled.
 func (a *Agent) heartbeats(ctx context.Context) {
-	t := time.NewTicker(5 * time.Second)
-	defer t.Stop()
+	last := time.Now()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
+	// Checked often, sent when due: a lease with a short TTL shortens the interval at once.
+	for sleep(ctx, 200*time.Millisecond) {
+		a.mu.Lock()
+		due := time.Since(last) >= a.beat
+		a.mu.Unlock()
+
+		if !due {
+			continue
 		}
+
+		last = time.Now()
 
 		a.mu.Lock()
 
