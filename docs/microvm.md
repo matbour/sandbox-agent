@@ -148,6 +148,26 @@ and reported the type check as clean: the change was never type-checked. Lessons
 - The rootfs has no `python3` and no `node`; the agent tried both, lost a turn, and fell back to
   Bun. Either add them or say so in the prompt.
 
+### Starts from a snapshot (D49, 2026-11-22)
+
+The provider builds, once per machine size, a **template**: a guest booted with no job and
+snapshotted while its guest agent waits, the workspace disk attached but not mounted. Each start
+then loads it in a new firecracker process and sends `OpConfigure`: the clock, a reseed of the
+random pool, the hostname, and the job's workspace, mounted after dropping the block cache. Every
+file of a VM has a fixed name in its run directory, where firecracker runs, so the snapshot's
+relative paths open the right disks. 50 ms per start instead of 159 ms, and restored guests share
+the template's memory pages ([benchmarks.md](benchmarks.md)). Not yet for VMs with a tap.
+
+Found on the way:
+
+- `timeout` without `--foreground` puts firecracker in a background process group: when it sets
+  up the terminal as the guest's serial console it gets `SIGTTOU` and stops before creating its
+  vCPU threads (state `T`). In a terminal, the serial console also takes Ctrl-C: stop the VM with
+  `kill`. The provider is not affected: it sends the console to a file.
+- Firecracker v1.18's `/snapshot/load` has `vsock_override`, `network_overrides` (the tap behind
+  an interface) and `clock_realtime` (x86 only), and maps the memory file private or serves it
+  through userfaultfd (`Uffd`).
+
 ## Option A2: Cloud Hypervisor
 
 Cloud Hypervisor is a Rust VMM on KVM from the same rust-vmm family as Firecracker, with a wider

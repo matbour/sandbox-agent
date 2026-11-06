@@ -34,7 +34,6 @@ func setup() error {
 		{"tmpfs", "/dev/shm", "tmpfs", unix.MS_NOSUID | unix.MS_NODEV, "mode=1777"},
 		{"tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID | unix.MS_NODEV, "mode=1777"},
 		{"tmpfs", agentHome, "tmpfs", unix.MS_NOSUID | unix.MS_NODEV, fmt.Sprintf("mode=0755,uid=%d,gid=%d", agentUID, agentGID)},
-		{"/dev/vdb", workspace, "ext4", unix.MS_NOSUID | unix.MS_NODEV, ""},
 	}
 
 	for _, m := range mounts {
@@ -62,12 +61,46 @@ func setup() error {
 	}
 
 	if h := params["sandbox.hostname"]; h != "" {
-		if err := unix.Sethostname([]byte(h)); err != nil {
-			return fmt.Errorf("hostname: %w", err)
+		if err := setHostname(h); err != nil {
+			return err
 		}
 	}
 
+	// A template (D49) is snapshotted before any job: the guest restored from it mounts the job's
+	// workspace when the host sends OpConfigure. Mounting the template's own disk here would leave
+	// its file system state in the snapshot, to be used on another disk.
+	if params["sandbox.template"] == "1" {
+		return loopbackUp()
+	}
+
+	if err := mountWorkspace(); err != nil {
+		return err
+	}
+
 	return loopbackUp()
+}
+
+// mountWorkspace mounts the workspace disk.
+func mountWorkspace() error {
+	if err := unix.Mount("/dev/vdb", workspace, "ext4", unix.MS_NOSUID|unix.MS_NODEV, ""); err != nil {
+		return fmt.Errorf("mount /dev/vdb on %s: %w", workspace, err)
+	}
+
+	return nil
+}
+
+// setHostname sets the kernel's hostname and /etc/hostname, which is on the writable copy of
+// /etc (writableEtc).
+func setHostname(h string) error {
+	if err := unix.Sethostname([]byte(h)); err != nil {
+		return fmt.Errorf("hostname: %w", err)
+	}
+
+	if err := os.WriteFile("/etc/hostname", []byte(h+"\n"), 0o644); err != nil {
+		return fmt.Errorf("/etc/hostname: %w", err)
+	}
+
+	return nil
 }
 
 // kernelParams parses the key=value words of the kernel command line.
@@ -83,8 +116,8 @@ func kernelParams(cmdline string) map[string]string {
 	return out
 }
 
-// writableEtc copies the image's /etc to a tmpfs, adds resolv.conf and hostname, and mounts the
-// copy over /etc. The image has no resolv.conf, and the host's resolver (127.0.0.53) is not
+// writableEtc copies the image's /etc to a tmpfs, adds resolv.conf, and mounts the copy over
+// /etc, where setHostname then writes /etc/hostname. The image has no resolv.conf, and the host's resolver (127.0.0.53) is not
 // reachable from the guest (D44).
 func writableEtc(params map[string]string) error {
 	const etc = "/run/etc"
@@ -105,12 +138,6 @@ func writableEtc(params map[string]string) error {
 
 	if err := os.WriteFile(filepath.Join(etc, "resolv.conf"), []byte(resolv.String()), 0o644); err != nil {
 		return err
-	}
-
-	if h := params["sandbox.hostname"]; h != "" {
-		if err := os.WriteFile(filepath.Join(etc, "hostname"), []byte(h+"\n"), 0o644); err != nil {
-			return err
-		}
 	}
 
 	return unix.Mount(etc, "/etc", "", unix.MS_BIND, "")

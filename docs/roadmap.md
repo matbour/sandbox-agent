@@ -126,7 +126,10 @@ the next version (N).
       first guest instruction, restore against cold boot, memory per idle microVM, on both machines
       ([benchmarks.md](benchmarks.md)). Done on the development machine (2026-11-20): cold start
       to a guest agent that answers in 160 ms (p50), eight at once in 216 ms, 68 MiB per idle
-      guest (`TestStartBench`). Left: the board, snapshots, a warm pool.
+      guest (`TestStartBench`). Snapshots (2026-11-22, D49): every start restores a template of a
+      booted guest, 50 ms (p50) instead of 159 ms, eight at once in 99 ms, 11 to 28 MiB PSS per
+      idle guest since restored VMs share the template's pages. Left: the network on restore, a
+      warm pool, the board.
 - [ ] E-RUNNER tests ([escape-tests.md](escape-tests.md)) pass. Covered by unit tests: 1 (token),
       2 (foreign lease), 3 (expired lease), 6 (replayed output), 7 (protocol). Left: 4 and 5 as
       explicit tests (the code paths are Mirror's limits and the output size limit).

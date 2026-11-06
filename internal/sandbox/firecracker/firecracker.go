@@ -7,8 +7,13 @@
 // directory. The network, when the host has taps, is a tap on the bridge of deploy/network/
 // (D44), with the guest's address on the kernel command line.
 //
+// A VM normally starts from a snapshot (D49): the first start of a machine size boots a guest,
+// snapshots it before any job, and keeps it as a template; every start then restores the template
+// in a new firecracker process and the guest agent makes the guest its own (OpConfigure). The
+// memory file is shared, copy-on-write, by every VM restored from it.
+//
 // It runs rootless, without Firecracker's jailer, which needs root (D47); the layer 1 runtime
-// will wrap the VMM instead (M3). Not done yet: snapshots, converting an OCI image to the rootfs.
+// will wrap the VMM instead (M3). Not done yet: converting an OCI image to the rootfs.
 package firecracker
 
 import (
@@ -51,6 +56,7 @@ type Config struct {
 	DiskSize    string        // workspace disk ceiling, sparse
 	CPUSet      string        // host cores for the VMs (taskset)
 	BootTimeout time.Duration
+	NoSnapshots bool  // boot every VM cold instead of restoring a template (D49)
 	MaxOutput   int   // per stream of one Exec
 	MaxSync     int64 // bytes of file content one SyncWorkspace may bring back
 	Log         *slog.Logger
@@ -154,7 +160,7 @@ func (p *Provider) CarriesWorker() bool {
 func (p *Provider) Prepare(context.Context) error {
 	p.reapOrphans()
 
-	if _, err := exec.LookPath(p.c.Firecracker); err != nil {
+	if _, err := lookPath(p.c.Firecracker); err != nil {
 		return fmt.Errorf("firecracker binary: %w", err)
 	}
 
@@ -242,29 +248,46 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 		return nil, err
 	}
 
-	wsImg := filepath.Join(dir, "workspace.ext4")
-	if err := workspaceDisk(ctx, s.Workspace, wsImg, p.c.DiskSize); err != nil {
+	if err := layout(dir, p.c.Rootfs, agent); err != nil {
+		return nil, err
+	}
+
+	if err := workspaceDisk(ctx, s.Workspace, filepath.Join(dir, workspaceName), p.c.DiskSize); err != nil {
 		return nil, err
 	}
 
 	sb.timings.Disks = time.Since(began)
+	sb.vsock = filepath.Join(dir, vsockName)
+
+	// Restored VMs have no network yet: with a tap, boot cold.
+	if !p.c.NoSnapshots && sb.tap == nil {
+		began = time.Now()
+
+		t, err := p.template(ctx, agent, vcpus, memMiB)
+		if err == nil {
+			sb.timings.Template = time.Since(began)
+
+			if err := sb.restore(ctx, t); err != nil {
+				return nil, err
+			}
+
+			ok = true
+
+			return sb, nil
+		}
+
+		p.c.Log.Warn("firecracker template unavailable, booting cold", "err", err)
+	}
 
 	vm := vmConfig{
 		vcpus: vcpus, memMiB: memMiB, kernel: p.c.Kernel, bootArgs: p.bootArgs(s.Name, sb.tap),
-		drives: []drive{
-			{DriveID: "rootfs", PathOnHost: p.c.Rootfs, IsRootDevice: true, IsReadOnly: true},
-			{DriveID: "workspace", PathOnHost: wsImg},
-			{DriveID: "agent", PathOnHost: agent, IsReadOnly: true},
-		},
-		vsock: filepath.Join(dir, "v.sock"),
+		drives: drives(), vsock: vsockName,
 	}
 
 	if sb.tap != nil {
 		vm.tap = sb.tap.name
 		vm.mac = fmt.Sprintf("06:00:0a:e6:00:%02x", 10+sb.tap.index)
 	}
-
-	sb.vsock = vm.vsock
 
 	if err := sb.boot(ctx, vm); err != nil {
 		return nil, err
@@ -295,12 +318,9 @@ func (p *Provider) bootArgs(name string, tap *tapLease) string {
 	return strings.Join(args, " ") + ` init=/bin/sh -- -c "` + init + `"`
 }
 
-// boot starts the firecracker process, configures the VM through the API and waits for the
-// guest agent.
-func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
-	apiSock := filepath.Join(s.dir, "api.sock")
-
-	argv := []string{s.c.Firecracker, "--api-sock", apiSock, "--id", s.name}
+// startVMM starts a firecracker process with no VM yet, in the VM's run directory.
+func (s *Sandbox) startVMM() error {
+	argv := []string{s.c.Firecracker, "--api-sock", apiName, "--id", s.name}
 	if s.c.CPUSet != "" {
 		argv = append([]string{"taskset", "-c", s.c.CPUSet}, argv...)
 	}
@@ -312,6 +332,7 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 
 	// Not tied to ctx: the VM outlives the call that started it, until Close.
 	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built here, not from input
+	cmd.Dir = s.dir
 	cmd.Stdout, cmd.Stderr = console, console
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -335,6 +356,18 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 	_ = os.WriteFile(filepath.Join(s.dir, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0o600)
 	_ = os.WriteFile(filepath.Join(s.dir, "owner"), []byte(strconv.Itoa(os.Getpid())), 0o600)
 
+	return nil
+}
+
+// boot starts the firecracker process, configures the VM through the API and waits for the
+// guest agent: a cold start.
+func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
+	apiSock := filepath.Join(s.dir, apiName)
+
+	if err := s.startVMM(); err != nil {
+		return err
+	}
+
 	began := time.Now()
 
 	if err := s.waitFor(ctx, 5*time.Second, func() error { _, err := os.Stat(apiSock); return err }); err != nil {
@@ -353,7 +386,7 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 
 	defer func() { s.timings.Guest = time.Since(began) }()
 
-	err = s.waitFor(ctx, s.c.BootTimeout, func() error {
+	err := s.waitFor(ctx, s.c.BootTimeout, func() error {
 		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 
@@ -430,16 +463,22 @@ type Sandbox struct {
 	timings Timings
 }
 
-// Timings is where a Start spent its time.
+// Timings is where a Start spent its time. A restored VM (Restored) spends Configure loading the
+// snapshot and resuming, and Guest in OpConfigure; a cold one spends Configure in the API calls up
+// to InstanceStart, and Guest booting the kernel until the guest agent answers.
 type Timings struct {
 	Disks     time.Duration // workspace image (and the tools disk, once per binary)
+	Template  time.Duration // finding the template, or building it on the first start
 	Process   time.Duration // firecracker started until its API socket exists
-	Configure time.Duration // the API calls, up to InstanceStart
-	Guest     time.Duration // InstanceStart until the guest agent answers: kernel boot, init, agent
+	Configure time.Duration
+	Guest     time.Duration
+	Restored  bool
 }
 
 // Total is the whole Start.
-func (t Timings) Total() time.Duration { return t.Disks + t.Process + t.Configure + t.Guest }
+func (t Timings) Total() time.Duration {
+	return t.Disks + t.Template + t.Process + t.Configure + t.Guest
+}
 
 // Timings returns where Start spent its time.
 func (s *Sandbox) Timings() Timings { return s.timings }
@@ -619,18 +658,26 @@ func (s *Sandbox) SyncWorkspace(ctx context.Context, exclude []string) error {
 	return nil
 }
 
+// stop kills the VM's process group and waits for firecracker to exit.
+func (s *Sandbox) stop() error {
+	if s.cmd == nil || s.cmd.Process == nil {
+		return nil
+	}
+
+	_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+
+	select {
+	case <-s.exited:
+		return nil
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("firecracker %d did not exit", s.cmd.Process.Pid)
+	}
+}
+
 // Close stops the VM and removes its run directory. The host workspace stays.
 func (s *Sandbox) Close() error {
 	s.closeOnce.Do(func() {
-		if s.cmd != nil && s.cmd.Process != nil {
-			_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
-
-			select {
-			case <-s.exited:
-			case <-time.After(10 * time.Second):
-				s.closeErr = fmt.Errorf("firecracker %d did not exit", s.cmd.Process.Pid)
-			}
-		}
+		s.closeErr = s.stop()
 
 		if s.tap != nil {
 			s.tap.release()
@@ -687,3 +734,6 @@ func parseMemory(m string) (int, error) {
 
 	return n * mult, nil
 }
+
+// lookPath finds the firecracker binary, by path or on PATH.
+func lookPath(name string) (string, error) { return exec.LookPath(name) }

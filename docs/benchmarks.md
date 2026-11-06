@@ -113,8 +113,30 @@ Through the whole chain (`TestFirecrackerFleet`: manager API, two runners, the w
 fake backend, the workspace both ways), a run whose worker sleeps 2 s takes 2.27 s: about 270 ms
 of overhead per run, the start included.
 
-To do: the same on the board (arm64, cores 4-7), our own kernel, and snapshot and restore
-(roadmap R8).
+To do: the same on the board (arm64, cores 4-7), and our own kernel.
+
+## Firecracker microVM start from a snapshot (2026-11-22)
+
+The same `TestStartBench`, now in two modes: `cold` (`NoSnapshots`) and `restored`, where each
+start loads a template snapshot of a booted guest and configures it (D49). Same machine, same
+settings: 1 vCPU, 1 GiB, no network, Firecracker v1.18.0, kernel 6.1.155.
+
+| Phase, p50 of 20 | Cold | Restored | |
+| --- | --- | --- | --- |
+| Workspace disk | 10 ms | 10 ms | `mkfs.ext4 -d` from a tar |
+| Process to API socket | 5 ms | 5 ms | |
+| API calls | 12 ms | 2 ms | cold: 7 PUTs; restored: load, patch the workspace drive, resume |
+| Guest | 132 ms | 31 ms | cold: kernel boot to guest agent; restored: `OpConfigure` |
+| **Total** | **159 ms** | **50 ms** | p90 161 → 51 ms |
+| 4 at once, all ready | 214 ms | 99 ms | |
+| 8 at once, all ready | 236 ms | 99 ms | |
+| Idle RSS | 68 MiB | 27 MiB | |
+| Idle PSS, 4 VMs | 66 to 68 MiB | 11 to 28 MiB | restored VMs share the template's pages |
+
+The template is built once per machine size (about 0.7 s: a cold boot, then writing 1 GiB of
+memory). In a first experiment without `OpConfigure`, a restore reached a guest agent that answers
+in 12 to 17 ms: most of the 31 ms of the restored guest phase is `OpConfigure` (mounting the
+workspace, reseeding the random pool), not measured part by part yet.
 
 ## To do
 

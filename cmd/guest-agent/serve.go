@@ -39,6 +39,8 @@ func serve(c io.ReadWriteCloser, r *reaper) {
 		_ = guestexec.WriteEnd(w, guestexec.Result{})
 	case guestexec.OpExec:
 		_ = guestexec.WriteEnd(w, run(req, br, w, r))
+	case guestexec.OpConfigure:
+		_ = guestexec.WriteEnd(w, configure(req.Configure))
 	case guestexec.OpTar:
 		res := guestexec.Result{}
 		if err := guestexec.WriteTree(guestexec.FrameWriter{W: w, Kind: guestexec.Data}, workspace,

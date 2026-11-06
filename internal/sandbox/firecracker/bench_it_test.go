@@ -15,8 +15,9 @@ import (
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
-// TestStartBench measures microVM starts on this machine: sequential starts phase by phase,
-// starts at once, and the host memory an idle guest costs. Results go to docs/benchmarks.md.
+// TestStartBench measures microVM starts on this machine, booted cold and restored from a
+// template (D49): sequential starts phase by phase, starts at once, and the host memory an idle
+// guest costs. Results go to docs/benchmarks.md.
 //
 //	SANDBOX_BENCH=1 go test ./internal/sandbox/firecracker/ -run StartBench -v
 func TestStartBench(t *testing.T) {
@@ -24,12 +25,18 @@ func TestStartBench(t *testing.T) {
 		t.Skip("set SANDBOX_BENCH=1")
 	}
 
-	root, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatal(err)
+	for _, mode := range []struct {
+		name string
+		cold bool
+	}{{"cold", true}, {"restored", false}} {
+		t.Run(mode.name, func(t *testing.T) {
+			p := NewWith(Defaults(Config{StateDir: t.TempDir(), Taps: []string{}, NoSnapshots: mode.cold}, repoRoot(t)))
+			benchStarts(t, p)
+		})
 	}
+}
 
-	p := NewWith(Defaults(Config{StateDir: t.TempDir(), Taps: []string{}}, root))
+func benchStarts(t *testing.T, p *Provider) {
 	ctx := context.Background()
 
 	ws := t.TempDir()
@@ -46,7 +53,7 @@ func TestStartBench(t *testing.T) {
 		return sb.(*Sandbox)
 	}
 
-	// Warm the tools disk cache and the page cache once.
+	// Warm the tools disk cache, the template and the page cache once.
 	_ = start("bench-warm").Close()
 
 	const n = 20
@@ -66,6 +73,7 @@ func TestStartBench(t *testing.T) {
 		get  func(Timings) time.Duration
 	}{
 		{"disks", func(x Timings) time.Duration { return x.Disks }},
+		{"template", func(x Timings) time.Duration { return x.Template }},
 		{"process", func(x Timings) time.Duration { return x.Process }},
 		{"configure", func(x Timings) time.Duration { return x.Configure }},
 		{"guest", func(x Timings) time.Duration { return x.Guest }},

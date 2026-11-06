@@ -610,3 +610,43 @@ differs from the text of `runners.md`:
 - Checked on the development machine: `agentd -try` through `runnerd` over loopback, with the fake
   backend and with Claude Code (12 s); and eight microVM runs at once on two runners of 3 and 1
   vCPUs, in two waves of four, 5.8 s in all (`TestFirecrackerFleet`).
+
+## D49. MicroVMs start from a snapshot of a booted guest (2026-11-22)
+
+`Provider.Start` restores a **template** instead of booting: a snapshot of a guest that booted
+with no job, its guest agent answering and the workspace disk attached but not mounted
+(`sandbox.template=1`). The first start of a machine size builds it (a cold boot, then pause and
+a full snapshot); every start after that runs a new firecracker process that loads it
+(`/snapshot/load`), and the guest agent makes the guest this VM's (`OpConfigure`). Cold boots
+remain for `NoSnapshots` and, until restored VMs get their network, for VMs with a tap.
+
+- **Relative paths.** firecracker runs in the VM's run directory, and the VM's configuration
+  names its files relatively (`rootfs.ext4`, `agent.ext4`, `workspace.ext4`, `v.sock`, the first
+  two links to the shared disks). The snapshot records those names, so a restore in another
+  directory opens that directory's disks, and Unix socket paths stay short. `vsock_override` is
+  set anyway; after the load, the workspace drive is patched to the same name so the guest reads
+  its size again.
+- **What the guest must not keep** (`OpConfigure`, once per guest): the clock (`clock_realtime`
+  on x86, and `Settimeofday` everywhere: KVM's option is x86 only), the random pool (64 host
+  bytes through `RNDADDENTROPY`, then `RNDRESEEDCRNG`: guests restored from one snapshot start
+  with the same pool), the hostname, and the workspace, mounted only now, after `BLKFLSBUF`: the
+  template's kernel read the disk it was built with, and those blocks are stale for the job's
+  disk. The template never mounts its workspace, so no file system state of another disk is in
+  the snapshot. Without the explicit reseed, guests restored in the experiment already read
+  different random bytes (probably VMGenID; to verify): kept, because the guest's kernel and
+  Firecracker version may change.
+- **Shared memory.** The memory file is mapped private (`mem_backend: File`): every VM restored
+  from a template shares its pages through the host's page cache until it writes them. Measured:
+  27 MiB RSS but 11 to 16 MiB PSS per idle VM, against 68 MiB for a cold boot.
+- **Key and cache.** A template is named after what the snapshot depends on: the firecracker
+  binary (a snapshot loads in the version that made it), the kernel and rootfs (size and mtime),
+  the tools disk (named after its content), vCPUs, memory, the workspace disk's size and the boot
+  arguments. Templates live in `<state>/templates/<key>/`; a build takes a lock file and is
+  renamed into place whole, so the first starts of a fleet build it once.
+- **No secret in a template.** It is built before any job, with no workspace and no token (the
+  development token of D43 goes in with each command's environment), and every VM restored from
+  it shares its memory: nothing of one job may be in it.
+- Measured on the development machine (benchmarks.md): 50 ms from nothing to a configured guest
+  (p50 of 20, 1 vCPU, 1 GiB), against 159 ms cold; eight at once all ready in 99 ms.
+- Left: the network on restore (a template with a tap, `network_overrides`, and the guest's
+  address and MAC set by `OpConfigure`), a warm pool of restored VMs, the same on the board.

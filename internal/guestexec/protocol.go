@@ -48,10 +48,26 @@ const (
 
 // Operations.
 const (
-	OpPing = "ping" // answers End at once: the agent is up
-	OpExec = "exec" // runs Argv
-	OpTar  = "tar"  // sends Dir as a tar stream
+	OpPing      = "ping"      // answers End at once: the agent is up
+	OpExec      = "exec"      // runs Argv
+	OpTar       = "tar"       // sends Dir as a tar stream
+	OpConfigure = "configure" // makes a guest restored from a snapshot its own (Configure)
 )
+
+// Configure is what a guest restored from a template snapshot (D49) must not keep from the
+// template: its name, its clock, its randomness, and its workspace, which the template never
+// mounted. The guest applies it once, right after the restore.
+type Configure struct {
+	Hostname string `json:"hostname,omitempty"`
+	// UnixNano sets the guest's clock. KVM's clock_realtime does it on x86 only.
+	UnixNano int64 `json:"unix_nano,omitempty"`
+	// Entropy is mixed into the guest's random pool, which then reseeds: every guest restored
+	// from one snapshot starts with the same pool.
+	Entropy []byte `json:"entropy,omitempty"`
+	// Workspace mounts /dev/vdb on the workspace, after dropping the block cache the template
+	// kept of the disk it was built with.
+	Workspace bool `json:"workspace,omitempty"`
+}
 
 // Request is what the host asks for.
 type Request struct {
@@ -67,6 +83,9 @@ type Request struct {
 
 	// tar
 	Exclude []string `json:"exclude,omitempty"` // patterns, see Excluded
+
+	// configure
+	Configure *Configure `json:"configure,omitempty"`
 }
 
 // Result ends every answer.
