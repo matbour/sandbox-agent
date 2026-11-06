@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -155,12 +156,46 @@ type tapLease struct {
 	lock  *os.File
 }
 
-// leaseTap takes the first free tap among taps.
-func leaseTap(lockDir string, taps []string) (*tapLease, error) {
+// tapLockDir is where tap leases live. Taps are the host's, not one provider's: every process of
+// the account must see the same locks, whatever its state directory, or two of them take the same
+// tap. The user's runtime directory when there is one, else a directory of the account's in /tmp.
+func tapLockDir() string {
+	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
+		return filepath.Join(d, "sandbox-agent", "taps")
+	}
+
+	return filepath.Join(os.TempDir(), fmt.Sprintf("sandbox-agent-%d", os.Getuid()), "taps")
+}
+
+// leaseTap takes the first free tap among taps, waiting up to wait for one: a tap is a slot of
+// the host, shared by every process of the account, and one frees up when a VM closes.
+func leaseTap(ctx context.Context, lockDir string, taps []string, wait time.Duration) (*tapLease, error) {
 	if err := os.MkdirAll(lockDir, 0o700); err != nil {
 		return nil, err
 	}
 
+	deadline := time.Now().Add(wait)
+
+	for {
+		l, err := tryTaps(lockDir, taps)
+		if l != nil || err != nil {
+			return l, err
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("all %d taps stayed in use for %s", len(taps), wait)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+// tryTaps takes a free tap, or returns nil, nil when all are in use.
+func tryTaps(lockDir string, taps []string) (*tapLease, error) {
 	for i, t := range taps {
 		f, err := os.OpenFile(filepath.Join(lockDir, t+".lock"), os.O_RDWR|os.O_CREATE, 0o600)
 		if err != nil {
@@ -179,7 +214,7 @@ func leaseTap(lockDir string, taps []string) (*tapLease, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("all %d taps are in use", len(taps))
+	return nil, nil
 }
 
 func (l *tapLease) release() { _ = l.lock.Close() }

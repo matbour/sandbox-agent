@@ -1,8 +1,10 @@
 package firecracker
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseMemory(t *testing.T) {
@@ -45,5 +47,31 @@ func TestCapped(t *testing.T) {
 func TestTapIndex(t *testing.T) {
 	if tapIndex("fc-tap3", 0) != 3 || tapIndex("other", 5) != 5 {
 		t.Error("tap index")
+	}
+}
+
+func TestLeaseTapWaits(t *testing.T) {
+	dir := t.TempDir()
+	ctx := context.Background()
+
+	held, err := leaseTap(ctx, dir, []string{"fc-tap0"}, time.Second)
+	if err != nil || held == nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		held.release()
+	}()
+
+	began := time.Now()
+
+	got, err := leaseTap(ctx, dir, []string{"fc-tap0"}, 5*time.Second)
+	if err != nil || got == nil || time.Since(began) < 150*time.Millisecond {
+		t.Errorf("waited %s: %v %v", time.Since(began), got, err)
+	}
+
+	if _, err := leaseTap(ctx, dir, []string{"fc-tap0"}, 200*time.Millisecond); err == nil {
+		t.Error("a held tap was leased twice")
 	}
 }

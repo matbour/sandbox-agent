@@ -36,18 +36,20 @@ import (
 
 // Config locates what a VM is made of. Zero values get the defaults of Defaults.
 type Config struct {
-	Firecracker string   // the firecracker binary
-	Kernel      string   // uncompressed guest kernel (vmlinux)
-	Rootfs      string   // agent rootfs, ext4
-	GuestAgent  string   // cmd/guest-agent, built for the guest's architecture
-	Worker      string   // cmd/worker, same architecture; optional
-	StateDir    string   // run directories, caches, tap locks
-	Taps        []string // taps to use; nil: every fc-tapN on the host; empty: no network
-	Subnet      string   // first three octets of the bridge's /24 (deploy/network/fc-net.sh)
-	DNS         string   // resolvers for the guest, comma-separated
-	BaseEnv     []string // added to every command's environment (the image's ENV)
-	DiskSize    string   // workspace disk ceiling, sparse
-	CPUSet      string   // host cores for the VMs (taskset)
+	Firecracker string        // the firecracker binary
+	Kernel      string        // uncompressed guest kernel (vmlinux)
+	Rootfs      string        // agent rootfs, ext4
+	GuestAgent  string        // cmd/guest-agent, built for the guest's architecture
+	Worker      string        // cmd/worker, same architecture; optional
+	StateDir    string        // run directories, caches
+	TapLockDir  string        // tap leases; host-wide, shared by every process of the account
+	TapWait     time.Duration // how long a start waits for a free tap
+	Taps        []string      // taps to use; nil: every fc-tapN on the host; empty: no network
+	Subnet      string        // first three octets of the bridge's /24 (deploy/network/fc-net.sh)
+	DNS         string        // resolvers for the guest, comma-separated
+	BaseEnv     []string      // added to every command's environment (the image's ENV)
+	DiskSize    string        // workspace disk ceiling, sparse
+	CPUSet      string        // host cores for the VMs (taskset)
 	BootTimeout time.Duration
 	MaxOutput   int   // per stream of one Exec
 	MaxSync     int64 // bytes of file content one SyncWorkspace may bring back
@@ -78,6 +80,7 @@ func Defaults(c Config, root string) Config {
 	def(&c.GuestAgent, filepath.Join(bin, "guest-agent"))
 	def(&c.Worker, filepath.Join(bin, "worker"))
 	def(&c.StateDir, filepath.Join(home, ".local/state/sandbox-agent/firecracker"))
+	def(&c.TapLockDir, tapLockDir())
 	def(&c.Subnet, "10.230.0")
 	def(&c.DNS, "1.1.1.1")
 	def(&c.DiskSize, "20G")
@@ -88,6 +91,10 @@ func Defaults(c Config, root string) Config {
 
 	if c.BaseEnv == nil {
 		c.BaseEnv = []string{"DISABLE_AUTOUPDATER=1", "USE_BUILTIN_RIPGREP=0"}
+	}
+
+	if c.TapWait == 0 {
+		c.TapWait = 2 * time.Minute
 	}
 
 	if c.BootTimeout == 0 {
@@ -217,7 +224,7 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 	}()
 
 	if len(p.c.Taps) > 0 {
-		if sb.tap, err = leaseTap(filepath.Join(p.c.StateDir, "taps"), p.c.Taps); err != nil {
+		if sb.tap, err = leaseTap(ctx, p.c.TapLockDir, p.c.Taps, p.c.TapWait); err != nil {
 			return nil, err
 		}
 	}
@@ -228,6 +235,8 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 		sb.worker = "/run/agent/worker"
 	}
 
+	began := time.Now()
+
 	agent, err := agentDisk(ctx, tools, filepath.Join(p.c.StateDir, "cache"))
 	if err != nil {
 		return nil, err
@@ -237,6 +246,8 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 	if err := workspaceDisk(ctx, s.Workspace, wsImg, p.c.DiskSize); err != nil {
 		return nil, err
 	}
+
+	sb.timings.Disks = time.Since(began)
 
 	vm := vmConfig{
 		vcpus: vcpus, memMiB: memMiB, kernel: p.c.Kernel, bootArgs: p.bootArgs(s.Name, sb.tap),
@@ -267,7 +278,10 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 // bootArgs is the kernel command line. The init is a shell one-liner that mounts the agent's disk
 // and hands over to it (cmd/guest-agent).
 func (p *Provider) bootArgs(name string, tap *tapLease) string {
+	// pci=off and the i8042 options skip probes for hardware a Firecracker guest does not have
+	// (its devices are virtio-mmio): they took about 470 ms of a 720 ms start (benchmarks.md).
 	args := []string{"console=ttyS0", "reboot=k", "panic=1", "ro", "quiet",
+		"pci=off", "i8042.noaux", "i8042.nomux", "i8042.nopnp", "i8042.dumbkbd",
 		"sandbox.hostname=" + name, "sandbox.dns=" + p.c.DNS}
 
 	if tap != nil {
@@ -321,13 +335,23 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 	_ = os.WriteFile(filepath.Join(s.dir, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0o600)
 	_ = os.WriteFile(filepath.Join(s.dir, "owner"), []byte(strconv.Itoa(os.Getpid())), 0o600)
 
+	began := time.Now()
+
 	if err := s.waitFor(ctx, 5*time.Second, func() error { _, err := os.Stat(apiSock); return err }); err != nil {
 		return fmt.Errorf("firecracker API socket: %w%s", err, s.consoleTail())
 	}
 
+	s.timings.Process = time.Since(began)
+	began = time.Now()
+
 	if err := newAPI(apiSock).configure(ctx, vm); err != nil {
 		return fmt.Errorf("configure VM: %w%s", err, s.consoleTail())
 	}
+
+	s.timings.Configure = time.Since(began)
+	began = time.Now()
+
+	defer func() { s.timings.Guest = time.Since(began) }()
 
 	err = s.waitFor(ctx, s.c.BootTimeout, func() error {
 		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -342,7 +366,8 @@ func (s *Sandbox) boot(ctx context.Context, vm vmConfig) error {
 	return nil
 }
 
-// waitFor retries check every 50 ms until it succeeds, the VM exits or timeout passes.
+// waitFor retries check every 5 ms until it succeeds, the VM exits or timeout passes. The checks
+// are a stat and a Unix socket connect: cheap, and the interval shows in the start time.
 func (s *Sandbox) waitFor(ctx context.Context, timeout time.Duration, check func() error) error {
 	deadline := time.Now().Add(timeout)
 
@@ -357,7 +382,7 @@ func (s *Sandbox) waitFor(ctx context.Context, timeout time.Duration, check func
 			return errors.New("the VM stopped")
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(5 * time.Millisecond):
 		}
 
 		if time.Now().After(deadline) {
@@ -401,6 +426,31 @@ type Sandbox struct {
 
 	closeOnce sync.Once
 	closeErr  error
+
+	timings Timings
+}
+
+// Timings is where a Start spent its time.
+type Timings struct {
+	Disks     time.Duration // workspace image (and the tools disk, once per binary)
+	Process   time.Duration // firecracker started until its API socket exists
+	Configure time.Duration // the API calls, up to InstanceStart
+	Guest     time.Duration // InstanceStart until the guest agent answers: kernel boot, init, agent
+}
+
+// Total is the whole Start.
+func (t Timings) Total() time.Duration { return t.Disks + t.Process + t.Configure + t.Guest }
+
+// Timings returns where Start spent its time.
+func (s *Sandbox) Timings() Timings { return s.timings }
+
+// VMMPid is the firecracker process, for measurements.
+func (s *Sandbox) VMMPid() int {
+	if s.cmd == nil || s.cmd.Process == nil {
+		return 0
+	}
+
+	return s.cmd.Process.Pid
 }
 
 // Name returns the sandbox name.
