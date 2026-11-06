@@ -13,3 +13,6 @@
 
 # Built disk images and kernels (scripts/build-rootfs.sh).
 /build/
+
+# Personal lab: learning exercises and notes, outside the project. Never commit.
+/lab/
