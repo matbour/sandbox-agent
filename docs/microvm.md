@@ -81,7 +81,8 @@ the jailer (D47).
 Verified on 2026-11-20 on the development machine: the conformance suite passes, and a command in
 the guest runs as root on request, has the VM's hostname, finds `git`, `bun` and `claude`, and
 reaches `api.anthropic.com` over HTTPS. The guest agent answers 0.8 s after `Start` (kernel boot
-included; the workspace was a few files).
+included; the workspace was a few files), then 160 ms once the kernel stopped probing for PCI and
+an i8042 controller ([benchmarks.md](benchmarks.md#firecracker-microvm-start-2026-11-20)).
 
 First real agent run (2026-11-20, development machine): `agentd -try` with
 `SANDBOX_PROVIDER=firecracker` on a small Bun repository, Claude Code with Haiku on the owner's

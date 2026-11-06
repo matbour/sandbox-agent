@@ -81,6 +81,41 @@ Pitfalls met on the way, each of which gave wrong numbers first:
   `node` shim in `/tmp`; it worked as root in Podman and failed as the `agent` user in the VM (to
   verify why).
 
+## Firecracker microVM start (2026-11-20)
+
+`TestStartBench` (`SANDBOX_BENCH=1 go test ./internal/sandbox/firecracker/ -run StartBench -v`)
+times `Provider.Start` from nothing to a guest agent that answers over vsock: the workspace disk
+(a few files), the firecracker process up to its API socket, the API calls, then the guest (kernel
+boot, the shell init, the guest agent). 1 vCPU, 1 GiB, no network, Firecracker v1.18.0 and its CI
+kernel 6.1.155, on the development machine (8-core x86-64, 16 threads). Rootless, no jailer, no
+snapshot: a cold boot each time. The tools disk is cached after the first start.
+
+| Phase | Before | After | |
+| --- | --- | --- | --- |
+| Workspace disk | 11 ms | 10 ms | `mkfs.ext4 -d` from a tar |
+| Process to API socket | 50 ms | 5 ms | the poll interval was the measure |
+| API calls | 13 ms | 11 ms | 7 PUTs |
+| Guest ready | 643 ms | 132 ms | kernel, init, guest agent |
+| **Total, p50 of 20** | **719 ms** | **160 ms** | p90 767 → 175 ms |
+| 4 at once, all ready | 799 ms | 213 ms | |
+| 8 at once, all ready | 855 ms | 216 ms | |
+
+"Before" is with the kernel probing a PCI bus and an i8042 keyboard controller, which a
+Firecracker guest does not have (its devices are virtio-mmio), and 50 ms polls; "after" adds
+`pci=off i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd` to the command line and polls every
+5 ms. Starts at once barely add to each other on this machine.
+
+Idle memory: once the guest agent is up, the firecracker process has an RSS of 68 MiB and a PSS of
+66 to 68 MiB, for a guest configured with 1 GiB: the guest only touches what it uses. So about 15
+idle guests per GiB of host memory, before page sharing or ballooning.
+
+Through the whole chain (`TestFirecrackerFleet`: manager API, two runners, the worker with the
+fake backend, the workspace both ways), a run whose worker sleeps 2 s takes 2.27 s: about 270 ms
+of overhead per run, the start included.
+
+To do: the same on the board (arm64, cores 4-7), our own kernel, and snapshot and restore
+(roadmap R8).
+
 ## To do
 
 - gVisor and Docker Sandboxes on the same input.
