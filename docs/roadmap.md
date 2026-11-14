@@ -160,6 +160,9 @@ the next version (N).
       PCI passthrough (GPUs), which Firecracker lacks. Both have snapshot and restore (arm64
       support of each to verify).
 - [ ] Snapshot a booted VM and restore it on both; measure the restore time against a cold boot.
+      Done on the development machine (2026-11-22): Firecracker restores in 3 to 7 ms through the
+      provider (D49), Cloud Hypervisor in 14 to 17 ms with `copyonwrite`
+      (`cloud-hypervisor/snapshot-check.sh`). Left: the board.
 - [ ] Decide layer 2: Firecracker, Cloud Hypervisor or gVisor. Record the result and the errors
       met.
 

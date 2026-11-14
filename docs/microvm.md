@@ -191,6 +191,29 @@ Known pitfall from published experience: virtio-fs devices do not always survive
 the workspace on a block device. Firmware or direct kernel boot on arm64, and the snapshot state on
 arm64: to verify in the spike.
 
+First run (2026-11-22, development machine, v54.1, `cloud-hypervisor/snapshot-check.sh`): the
+agent rootfs and Firecracker's CI kernel boot with direct kernel boot (the ELF `vmlinux`), 2 vCPUs,
+1 GiB, no network and no vsock yet:
+
+| Step | Cloud Hypervisor | Firecracker (D49, same image) |
+| --- | --- | --- |
+| Cold boot to the guest's first line | 88 to 90 ms | about 140 ms |
+| Pause and snapshot, 1 GiB | 310 to 440 ms | 550 ms |
+| Restore, `memory_restore_mode=copy` (default) | 136 to 174 ms | |
+| Restore, `copyonwrite` | 14 to 17 ms | 3 to 7 ms (`mem_backend: File`) |
+| Resume | 4 ms | under 2 ms |
+
+The restored guest runs on (its serial keeps printing the time, already current). `copy` reads the
+whole memory file into the guest's RAM; `copyonwrite` maps it private, as Firecracker's file
+backend does, so restored guests should share its pages too (not measured yet). `ondemand` uses
+userfaultfd, refused to an unprivileged account (`vm.unprivileged_userfaultfd = 0`).
+
+Found on the way: the disk needs `image_type=raw` in this version, and the API socket path the
+same 108-byte limit as Firecracker's (relative paths). Its devices are virtio-pci, so a provider
+must not pass `pci=off`, which the Firecracker provider adds to skip probing. Its vsock is the same
+hybrid vsock as Firecracker's (a Unix socket and `CONNECT <port>`), so the guest agent should work
+as is: to verify, with the network and a provider behind the same interface.
+
 ## Option B: gVisor
 
 gVisor (`runsc`) implements the Linux syscall interface in a user-space kernel (the Sentry), written in
