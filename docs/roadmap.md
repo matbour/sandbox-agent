@@ -21,8 +21,9 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [x] The development account in `kvm`; Firecracker and Cloud Hypervisor boot a test guest.
 - [x] AppArmor profile with `userns,` for `runsc` on the development machine; rootless gVisor runs.
 - [ ] SSH from the development machine to the board (private notes).
-- [ ] Decide how builds reach the board: cross-compile and copy the binaries, or `git pull` and
-      `make build` on the board. Record it in decisions.md.
+- [x] Decide how builds reach the board (D50, 2026-11-22): CI publishes the binaries of every
+      commit of main that passed to the `builds` branch, and a user timer on the board pulls,
+      checks and installs them, then restarts the service (`deploy/update/`).
 
 ## S1: Docker Sandboxes on the board
 

@@ -1,0 +1,10 @@
+# User unit: ~/.config/systemd/user/sandbox-agent-update.service, started by the timer (D50).
+#   systemctl --user daemon-reload && systemctl --user enable --now sandbox-agent-update.timer
+[Unit]
+Description=sandbox-agent: install the latest published binaries
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/sandbox-agent/deploy/update/update.sh
+Nice=10

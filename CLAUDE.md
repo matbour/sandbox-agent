@@ -60,8 +60,8 @@ target. Details of both are in the private notes.
   linux/amd64 and linux/arm64 (the arm64 binaries go to `bin/linux-arm64/`), `make test` runs the
   tests.
 - Work directly on `main` for now: no feature branches. Commit each logical change on `main`.
-- The board keeps its own checkout in `~/sandbox-agent`. How builds are deployed there is not
-  settled yet (roadmap, M0b).
+- The board keeps its own checkout in `~/sandbox-agent`. It installs the binaries CI publishes to
+  the `builds` branch by itself, every minute (D50, `deploy/update/`): push to main, wait for CI.
 
 ## Rules
 

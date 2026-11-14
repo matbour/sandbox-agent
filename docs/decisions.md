@@ -658,3 +658,26 @@ remain for `NoSnapshots`, and as a fallback when a template cannot be built.
   (worker, HTTPS to the model API, the VM's own address and MAC), and eight runs at once on two
   runners sharing four taps (`TestFirecrackerFleet`, 5.2 s against 5.8 s before).
 - Left: a warm pool of restored VMs, the same on the board.
+
+## D50. The board pulls the binaries CI built (2026-11-22)
+
+Settles M0b's open point on how builds reach the board:
+
+- **CI publishes.** When CI passes on a push to main, `.github/workflows/deploy.yml` builds both
+  architectures (`make cross`) and force-pushes them to the `builds` branch as one orphan commit:
+  `linux-amd64/`, `linux-arm64/`, `SHA256SUMS`, and `COMMIT`, the source commit
+  (`scripts/publish-builds.sh`). Only the last build is kept.
+- **The board pulls.** A user timer runs `deploy/update/update.sh` every minute: fetch `builds`
+  with the checkout's own remote and read-only deploy key, stop if `COMMIT` is the one installed,
+  else check the files against `SHA256SUMS`, check that `agentd` starts, keep the current binaries
+  in `bin.prev/`, rename the new ones into `bin/` one by one, fast-forward the checkout to the same
+  commit (for `deploy/` and the docs), and restart the service. The restart lets a running job
+  finish (`TimeoutStopSec`).
+- **Why pull.** Nothing connects to the board, and no secret that reaches it lives in GitHub: the
+  alternatives were an SSH key and a tunnel token in the repository's secrets (CI pushes), or a
+  self-hosted runner, which would run CI code on a machine that also runs other services.
+- **Why a branch.** The repository is private: a release asset needs an API token on the board,
+  while a branch needs only the deploy key it already has. A build is about 30 MB per
+  architecture, and the force-push keeps one.
+- Latency: a minute or so after CI. Later, if needed: CI calls agentd's endpoint (behind
+  Cloudflare Access) to make it check at once; the signal would carry no binary.
