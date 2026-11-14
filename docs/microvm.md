@@ -202,6 +202,14 @@ Go. The agent's syscalls hit the Sentry, which uses a small set of host syscalls
 - Trade-off: slower for syscall-heavy work (builds, `git`, `npm install`), and some syscalls are
   missing. Measure on a real repository.
 
+The provider (D51, 2026-11-22) runs runsc as the OCI runtime of rootless Podman rather than
+`runsc --rootless` alone: alone, runsc maps only the account's UID, to root, so the agent (UID 1000
+in the image) cannot write the workspace, and a finer map is refused (the gofer cannot fork with
+it). Podman's user namespace from `/etc/subuid` and `--userns=keep-id` make UID 1000 inside the
+account outside. Podman's cgroups need systemd authorization here, so runsc ignores cgroups and a
+transient `systemd-run --user --scope` carries the limits. The network is Podman's pasta under
+gVisor's own stack (`--network=sandbox`).
+
 ## Docker Sandboxes, the provider in use
 
 Docker Sandboxes (`sbx`) started as a point of comparison and became the first provider (D11): a

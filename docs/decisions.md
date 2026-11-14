@@ -681,3 +681,30 @@ Settles M0b's open point on how builds reach the board:
   architecture, and the force-push keeps one.
 - Latency: a minute or so after CI. Later, if needed: CI calls agentd's endpoint (behind
   Cloudflare Access) to make it check at once; the signal would carry no binary.
+
+## D51. gVisor runs as the OCI runtime of rootless Podman (2026-11-22)
+
+The gVisor provider (`internal/sandbox/gvisor`) starts one Podman container per sandbox with
+`--runtime <runsc> --userns=keep-id`, idle (`sleep infinity`), and runs commands with
+`podman exec`:
+
+- **Why Podman.** `runsc --rootless` alone maps only the account's UID, to root inside: the agent
+  (UID 1000 in the image) sees the workspace as root's and cannot write it, and a finer map is
+  refused (the gofer cannot fork with it). Podman builds a full user namespace from `/etc/subuid`
+  (`newuidmap`), and `keep-id` makes UID 1000 inside the account outside: the workspace is a plain
+  bind mount, shared both ways, and no `Syncer` is needed.
+- **Limits.** Podman's systemd cgroup manager needs an interactive authorization here, and runsc
+  would not use cgroupfs ones (`ignore-cgroups`), so the podman command runs in a transient
+  `systemd-run --user --scope` with `MemoryMax`, `MemorySwapMax=0` and `CPUQuota`, in the account's
+  delegated tree: conmon, runsc and the sandbox's processes are born in it and stay there. The CPU
+  set goes through `taskset`.
+- **Network.** Podman's rootless network (pasta) under gVisor's own network stack
+  (`--network=sandbox`). Measured: the model API is reachable, the host's LAN address and the
+  cloud metadata address are not, so the conformance suite runs with its network checks on, unlike
+  Firecracker's (D44). Host loopback through pasta's gateway: to verify.
+- **Cancellation.** `podman exec` leaves the command running when its client is killed: each command
+  runs under a shell that writes its pid to a file, and a cancelled one is killed in the container
+  with its children; deeper descendants die with the container at `Close`.
+- **The worker** is bind-mounted read-only at `/run/agent/worker`.
+- Measured on the development machine: 89 ms to a started container, the conformance suite and
+  the guest checks pass, and `agentd -try` ran Claude Code on a task in 12 s.

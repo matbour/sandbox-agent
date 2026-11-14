@@ -27,6 +27,7 @@ import (
 	"github.com/matbour/sandbox-agent/internal/runnerapi"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
+	"github.com/matbour/sandbox-agent/internal/sandbox/gvisor"
 	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
 )
 
@@ -34,6 +35,7 @@ import (
 var providers = sandbox.Registry{
 	"sbx":         sbx.New,
 	"firecracker": firecracker.New,
+	"gvisor":      gvisor.New,
 }
 
 func main() {

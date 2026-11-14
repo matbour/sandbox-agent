@@ -139,10 +139,12 @@ the next version (N).
 ## P: sandbox providers (from 2026-11-13)
 
 - [x] `internal/sandbox` interface, sbx moved behind it, conformance suite; sbx passes (D30).
-- [ ] gVisor provider (`internal/sandbox/gvisor`): `runsc` arm64 in the home directory, rootless
-      (needs an AppArmor profile with `userns,` installed by the owner, as for M2), rootfs from the
-      sbx `claude` image pulled without Docker, no network except a Unix socket to the egress
-      proxy (M4) that injects the key. Pass the conformance suite, then run a real issue.
+- [x] gVisor provider (`internal/sandbox/gvisor`, D51, 2026-11-22, development machine): runsc as
+      the OCI runtime of rootless Podman, the agent image, the workspace as a bind mount, limits
+      through a systemd scope. Passes the conformance suite with the network checks on (the
+      model API is reachable, the host's LAN address and cloud metadata are not), starts in
+      89 ms, and ran Claude Code on a task through `agentd -try` (12 s). Left: the board (arm64),
+      a real issue, the egress proxy of M4 instead of pasta.
 - [ ] Comparison table: start time, install time on the target monorepo, memory, escape tests.
 
 ## M1: microVM spike (Firecracker and Cloud Hypervisor)
