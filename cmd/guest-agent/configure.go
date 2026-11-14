@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -49,6 +52,12 @@ func apply(c *guestexec.Configure) error {
 		}
 	}
 
+	if c.Net != nil {
+		if err := setNetwork(c.Net); err != nil {
+			return fmt.Errorf("network: %w", err)
+		}
+	}
+
 	if c.Hostname != "" {
 		if err := setHostname(c.Hostname); err != nil {
 			return err
@@ -62,6 +71,38 @@ func apply(c *guestexec.Configure) error {
 
 		if err := mountWorkspace(); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// setNetwork gives eth0 this guest's MAC and address, with busybox ip from the rootfs. The MAC
+// can only change while the link is down.
+func setNetwork(n *guestexec.Net) error {
+	if _, err := net.ParseMAC(n.MAC); err != nil {
+		return err
+	}
+
+	if _, _, err := net.ParseCIDR(n.Address); err != nil {
+		return err
+	}
+
+	if net.ParseIP(n.Gateway) == nil {
+		return fmt.Errorf("invalid gateway %q", n.Gateway)
+	}
+
+	for _, args := range [][]string{
+		{"link", "set", "eth0", "down"},
+		{"link", "set", "eth0", "address", n.MAC},
+		{"link", "set", "eth0", "up"},
+		{"addr", "flush", "dev", "eth0"},
+		{"addr", "add", n.Address, "dev", "eth0"},
+		{"route", "replace", "default", "via", n.Gateway, "dev", "eth0"},
+	} {
+		out, err := exec.Command("/sbin/ip", args...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("ip %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 		}
 	}
 

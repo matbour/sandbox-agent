@@ -156,7 +156,8 @@ then loads it in a new firecracker process and sends `OpConfigure`: the clock, a
 random pool, the hostname, and the job's workspace, mounted after dropping the block cache. Every
 file of a VM has a fixed name in its run directory, where firecracker runs, so the snapshot's
 relative paths open the right disks. 50 ms per start instead of 159 ms, and restored guests share
-the template's memory pages ([benchmarks.md](benchmarks.md)). Not yet for VMs with a tap.
+the template's memory pages ([benchmarks.md](benchmarks.md)). With a tap, the load swaps the
+template's tap for the VM's and the guest takes the address and MAC of that tap.
 
 Found on the way:
 

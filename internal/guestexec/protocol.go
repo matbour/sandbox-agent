@@ -67,6 +67,16 @@ type Configure struct {
 	// Workspace mounts /dev/vdb on the workspace, after dropping the block cache the template
 	// kept of the disk it was built with.
 	Workspace bool `json:"workspace,omitempty"`
+	// Net replaces the template's address on eth0. Every guest restored from one template has
+	// its MAC address too, so it is set here as well.
+	Net *Net `json:"net,omitempty"`
+}
+
+// Net is the guest's address on eth0.
+type Net struct {
+	Address string `json:"address"` // CIDR, e.g. 10.230.0.12/24
+	Gateway string `json:"gateway"`
+	MAC     string `json:"mac"`
 }
 
 // Request is what the host asks for.

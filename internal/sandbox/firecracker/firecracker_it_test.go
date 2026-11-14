@@ -59,6 +59,26 @@ func TestGuest(t *testing.T) {
 	}
 	defer func() { _ = sb.Close() }()
 
+	// D49: the VM was restored from a template, and has the address and MAC of its own tap, not
+	// the template's.
+	t.Run("restored address", func(t *testing.T) {
+		fsb := sb.(*Sandbox)
+		if !fsb.Timings().Restored {
+			t.Fatal("booted cold, not restored")
+		}
+
+		so, se, err := sb.Exec(ctx, sandbox.ExecOptions{}, "ip", "addr", "show", "eth0")
+		if err != nil {
+			t.Fatalf("%v %s", err, se)
+		}
+
+		for _, want := range []string{guestAddr(p.c.Subnet, fsb.tap) + "/24", guestMAC(fsb.tap)} {
+			if !strings.Contains(string(so), want) {
+				t.Errorf("eth0 has no %s:\n%s", want, so)
+			}
+		}
+	})
+
 	t.Run("worker", func(t *testing.T) {
 		wp := sb.(sandbox.WorkerHost).WorkerPath()
 		if wp == "" {

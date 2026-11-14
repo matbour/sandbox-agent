@@ -618,7 +618,7 @@ with no job, its guest agent answering and the workspace disk attached but not m
 (`sandbox.template=1`). The first start of a machine size builds it (a cold boot, then pause and
 a full snapshot); every start after that runs a new firecracker process that loads it
 (`/snapshot/load`), and the guest agent makes the guest this VM's (`OpConfigure`). Cold boots
-remain for `NoSnapshots` and, until restored VMs get their network, for VMs with a tap.
+remain for `NoSnapshots`, and as a fallback when a template cannot be built.
 
 - **Relative paths.** firecracker runs in the VM's run directory, and the VM's configuration
   names its files relatively (`rootfs.ext4`, `agent.ext4`, `workspace.ext4`, `v.sock`, the first
@@ -643,10 +643,18 @@ remain for `NoSnapshots` and, until restored VMs get their network, for VMs with
   the tools disk (named after its content), vCPUs, memory, the workspace disk's size and the boot
   arguments. Templates live in `<state>/templates/<key>/`; a build takes a lock file and is
   renamed into place whole, so the first starts of a fleet build it once.
+- **Network.** With a tap, the template has an interface: its build borrows the starting VM's tap
+  (a second one could be missing when every tap is held by a VM waiting for that template), and
+  the key records only that there is a network. The load replaces the tap behind `eth0`
+  (`network_overrides`), and `OpConfigure` gives the guest its address and gateway and the MAC of
+  its tap with busybox `ip`: every guest restored from a template would otherwise share its MAC
+  and address on the bridge.
 - **No secret in a template.** It is built before any job, with no workspace and no token (the
   development token of D43 goes in with each command's environment), and every VM restored from
   it shares its memory: nothing of one job may be in it.
 - Measured on the development machine (benchmarks.md): 50 ms from nothing to a configured guest
   (p50 of 20, 1 vCPU, 1 GiB), against 159 ms cold; eight at once all ready in 99 ms.
-- Left: the network on restore (a template with a tap, `network_overrides`, and the guest's
-  address and MAC set by `OpConfigure`), a warm pool of restored VMs, the same on the board.
+- Checked: the conformance suite on restored VMs with and without a tap, the guest checks
+  (worker, HTTPS to the model API, the VM's own address and MAC), and eight runs at once on two
+  runners sharing four taps (`TestFirecrackerFleet`, 5.2 s against 5.8 s before).
+- Left: a warm pool of restored VMs, the same on the board.

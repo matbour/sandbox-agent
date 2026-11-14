@@ -10,7 +10,8 @@
 // A VM normally starts from a snapshot (D49): the first start of a machine size boots a guest,
 // snapshots it before any job, and keeps it as a template; every start then restores the template
 // in a new firecracker process and the guest agent makes the guest its own (OpConfigure). The
-// memory file is shared, copy-on-write, by every VM restored from it.
+// memory file is shared, copy-on-write, by every VM restored from it. With a tap, the load swaps
+// the template's tap for the VM's, and OpConfigure gives the guest that tap's address and MAC.
 //
 // It runs rootless, without Firecracker's jailer, which needs root (D47); the layer 1 runtime
 // will wrap the VMM instead (M3). Not done yet: converting an OCI image to the rootfs.
@@ -259,11 +260,10 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 	sb.timings.Disks = time.Since(began)
 	sb.vsock = filepath.Join(dir, vsockName)
 
-	// Restored VMs have no network yet: with a tap, boot cold.
-	if !p.c.NoSnapshots && sb.tap == nil {
+	if !p.c.NoSnapshots {
 		began = time.Now()
 
-		t, err := p.template(ctx, agent, vcpus, memMiB)
+		t, err := p.template(ctx, agent, vcpus, memMiB, sb.tap)
 		if err == nil {
 			sb.timings.Template = time.Since(began)
 
@@ -285,8 +285,7 @@ func (p *Provider) Start(ctx context.Context, s sandbox.Spec) (sandbox.Sandbox, 
 	}
 
 	if sb.tap != nil {
-		vm.tap = sb.tap.name
-		vm.mac = fmt.Sprintf("06:00:0a:e6:00:%02x", 10+sb.tap.index)
+		vm.tap, vm.mac = sb.tap.name, guestMAC(sb.tap)
 	}
 
 	if err := sb.boot(ctx, vm); err != nil {
@@ -308,8 +307,7 @@ func (p *Provider) bootArgs(name string, tap *tapLease) string {
 		"sandbox.hostname=" + name, "sandbox.dns=" + p.c.DNS}
 
 	if tap != nil {
-		addr := fmt.Sprintf("%s.%d", p.c.Subnet, 10+tap.index)
-		args = append(args, fmt.Sprintf("ip=%s::%s.1:255.255.255.0::eth0:off", addr, p.c.Subnet))
+		args = append(args, fmt.Sprintf("ip=%s::%s.1:255.255.255.0::eth0:off", guestAddr(p.c.Subnet, tap), p.c.Subnet))
 	}
 
 	init := "mount -t tmpfs -o mode=755 tmpfs /run && mkdir /run/agent && " +
@@ -737,3 +735,11 @@ func parseMemory(m string) (int, error) {
 
 // lookPath finds the firecracker binary, by path or on PATH.
 func lookPath(name string) (string, error) { return exec.LookPath(name) }
+
+// guestAddr is the guest's address behind tap N on the bridge's /24 (deploy/network/fc-net.sh).
+func guestAddr(subnet string, tap *tapLease) string {
+	return fmt.Sprintf("%s.%d", subnet, 10+tap.index)
+}
+
+// guestMAC is the guest's MAC behind tap N: one per tap, so no two guests on the bridge share one.
+func guestMAC(tap *tapLease) string { return fmt.Sprintf("06:00:0a:e6:00:%02x", 10+tap.index) }

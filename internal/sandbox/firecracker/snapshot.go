@@ -82,11 +82,16 @@ func (p *Provider) templateKey(agent string, vcpus, memMiB int, bootArgs string)
 }
 
 // template returns the template for this machine size, building it the first time. Builds are
-// serialized per key with a lock file, so the first starts of a fleet build it once.
-func (p *Provider) template(ctx context.Context, agent string, vcpus, memMiB int) (template, error) {
-	args := p.bootArgs("template", nil) + " sandbox.template=1"
+// serialized per key with a lock file, so the first starts of a fleet build it once. With a tap,
+// the template has a network interface, and the build borrows the caller's tap: the guest's
+// address it boots with is replaced at each restore, so it is not part of the key.
+func (p *Provider) template(ctx context.Context, agent string, vcpus, memMiB int, tap *tapLease) (template, error) {
+	keyArgs := p.bootArgs("template", nil) + " sandbox.template=1"
+	if tap != nil {
+		keyArgs += " net"
+	}
 
-	key, err := p.templateKey(agent, vcpus, memMiB, args)
+	key, err := p.templateKey(agent, vcpus, memMiB, keyArgs)
 	if err != nil {
 		return template{}, err
 	}
@@ -115,7 +120,9 @@ func (p *Provider) template(ctx context.Context, agent string, vcpus, memMiB int
 
 	began := time.Now()
 
-	if err := p.buildTemplate(ctx, dir, agent, vcpus, memMiB, args); err != nil {
+	args := p.bootArgs("template", tap) + " sandbox.template=1"
+
+	if err := p.buildTemplate(ctx, dir, agent, vcpus, memMiB, args, tap); err != nil {
 		return template{}, fmt.Errorf("build template: %w", err)
 	}
 
@@ -127,7 +134,7 @@ func (p *Provider) template(ctx context.Context, agent string, vcpus, memMiB int
 
 // buildTemplate boots a guest in a fresh directory, snapshots it once its agent answers, and
 // moves the snapshot files to dir.
-func (p *Provider) buildTemplate(ctx context.Context, dir, agent string, vcpus, memMiB int, args string) error {
+func (p *Provider) buildTemplate(ctx context.Context, dir, agent string, vcpus, memMiB int, args string, tap *tapLease) error {
 	run, err := os.MkdirTemp(filepath.Dir(dir), "build-")
 	if err != nil {
 		return err
@@ -152,6 +159,9 @@ func (p *Provider) buildTemplate(ctx context.Context, dir, agent string, vcpus, 
 	defer func() { _ = sb.stop() }()
 
 	vm := vmConfig{vcpus: vcpus, memMiB: memMiB, kernel: p.c.Kernel, bootArgs: args, drives: drives(), vsock: vsockName}
+	if tap != nil {
+		vm.tap, vm.mac = tap.name, guestMAC(tap)
+	}
 
 	if err := sb.boot(ctx, vm); err != nil {
 		return err
@@ -215,6 +225,12 @@ func (s *Sandbox) restore(ctx context.Context, t template) error {
 	req := guestexec.Request{Op: guestexec.OpConfigure, Configure: &guestexec.Configure{
 		Hostname: s.name, UnixNano: time.Now().UnixNano(), Entropy: entropy, Workspace: true,
 	}}
+
+	if s.tap != nil {
+		req.Configure.Net = &guestexec.Net{
+			Address: guestAddr(s.c.Subnet, s.tap) + "/24", Gateway: s.c.Subnet + ".1", MAC: guestMAC(s.tap),
+		}
+	}
 
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
