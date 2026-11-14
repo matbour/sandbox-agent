@@ -26,6 +26,8 @@ const (
 	workspaceName = "workspace.ext4" // this VM's workspace disk
 	vsockName     = "v.sock"
 	apiName       = "api.sock"
+
+	snapshotTimeout = 10 * time.Minute
 )
 
 // layout fills dir with the links to the shared disks. The workspace disk is written by the
@@ -172,7 +174,11 @@ func (p *Provider) buildTemplate(ctx context.Context, dir, agent string, vcpus, 
 		return err
 	}
 
+	// The snapshot writes and syncs the whole guest memory: several GiB on a disk can take far
+	// longer than the API's usual 10 s.
 	a := newAPI(filepath.Join(run, apiName))
+	a.c.Timeout = snapshotTimeout
+
 	if err := a.snapshot(ctx, filepath.Join(snap, "vm.state"), filepath.Join(snap, "vm.mem")); err != nil {
 		return err
 	}

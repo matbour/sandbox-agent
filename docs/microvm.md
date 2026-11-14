@@ -165,6 +165,15 @@ Found on the way:
   up the terminal as the guest's serial console it gets `SIGTTOU` and stops before creating its
   vCPU threads (state `T`). In a terminal, the serial console also takes Ctrl-C: stop the VM with
   `kill`. The provider is not affected: it sends the console to a file.
+- With agentd's machine size (4 vCPUs, 6 GiB), writing and syncing the memory file takes about
+  14 s on the development machine's disk: the snapshot request needs a timeout of its own, past
+  the API's 10 s. The template is then 6.1 GB on disk.
+- A large repository's Bun cache (about 3.9 GB for the target repository) does not fit in the
+  guest's home, a tmpfs capped at half the guest's memory: `bun install` failed with ENOSPC. The
+  caches now go on the workspace disk (`BUN_INSTALL_CACHE_DIR`, `XDG_CACHE_HOME`), under `.bun/`
+  and `.cache/`, which are never synced back.
+- First real issue through a restored microVM (2026-11-22): label to ready pull request in
+  2 min 32 s, Haiku, less than $0.01.
 - Firecracker v1.18's `/snapshot/load` has `vsock_override`, `network_overrides` (the tap behind
   an interface) and `clock_realtime` (x86 only), and maps the memory file private or serves it
   through userfaultfd (`Uffd`).

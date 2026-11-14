@@ -78,7 +78,8 @@ Design in [decision/protocol.md](decision/protocol.md).
 - [ ] Manager, rest: tag events with their source in the overview, the session state machine of
       D33 (moves into R3's durable steps), and `sbx` through the worker so the direct path goes.
 - [ ] Check on a real session which status Linear shows after each activity type; record it.
-- [ ] A real issue end to end through the worker.
+- [x] A real issue end to end through the worker (2026-11-22, Firecracker restored from a
+      snapshot: label to ready pull request in 2 min 32 s).
 
 ## R: one manager, several runners (D42 to D45, from 2026-11-20)
 

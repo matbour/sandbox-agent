@@ -96,8 +96,13 @@ func Defaults(c Config, root string) Config {
 		c.Taps = hostTaps()
 	}
 
+	// The caches go on the workspace disk, not in the home directory: home is a tmpfs, capped at
+	// half the guest's memory, and a large repository's Bun cache does not fit (ENOSPC). On the
+	// disk they cost no memory, Bun can hard-link from its cache into node_modules, and .bun/ and
+	// .cache/ are never synced back (internal/job's exclude list).
 	if c.BaseEnv == nil {
-		c.BaseEnv = []string{"DISABLE_AUTOUPDATER=1", "USE_BUILTIN_RIPGREP=0"}
+		c.BaseEnv = []string{"DISABLE_AUTOUPDATER=1", "USE_BUILTIN_RIPGREP=0",
+			"BUN_INSTALL_CACHE_DIR=/workspace/.bun/install/cache", "XDG_CACHE_HOME=/workspace/.cache"}
 	}
 
 	if c.TapWait == 0 {
@@ -135,7 +140,8 @@ func New(o sandbox.Options) (sandbox.Provider, error) {
 		root = filepath.Dir(root)
 	}
 
-	return &Provider{c: Defaults(Config{CPUSet: o.CPUSet}, root)}, nil
+	// slog.Default is agentd's or runnerd's logger: a template that cannot be built must show.
+	return &Provider{c: Defaults(Config{CPUSet: o.CPUSet, Log: slog.Default()}, root)}, nil
 }
 
 // NewWith builds a provider from an explicit configuration (tests, runnerd).
