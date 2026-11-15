@@ -708,3 +708,31 @@ The gVisor provider (`internal/sandbox/gvisor`) starts one Podman container per 
 - **The worker** is bind-mounted read-only at `/run/agent/worker`.
 - Measured on the development machine: 89 ms to a started container, the conformance suite and
   the guest checks pass, and `agentd -try` ran Claude Code on a task in 12 s.
+
+## D52. The sandbox runs on its own: a repository and a task in, a patch out (2026-11-22)
+
+`sandbox task` (`cmd/sandbox`) is the project's core without Linear, GitHub or a queue, so it can
+be shown, installed and used on any machine, and the Linear flow becomes one client of it:
+
+- **The contract.** In: a Git repository (its HEAD) and a task in Markdown, plus optional setup
+  script, provider, agent, model and limits. Out, in a new directory: `changes.patch`
+  (`git diff --binary` against HEAD), `result.json`, `events.jsonl`, `worker.log`. Exit status 0
+  done, 3 a question, 1 failed.
+- **The pieces are the existing ones**: `internal/runner` runs the worker in a fresh sandbox from
+  any provider (now listed once, in `internal/sandbox/providers`, for agentd too), and the prompt
+  frames the task as untrusted data, as agentd's frames an issue. The import boundary test keeps
+  `cmd/sandbox` free of Linear, GitHub, Git operations and agentd's configuration.
+- **The patch is taken on the host, with metadata the agent never saw.** The repository is cloned
+  (`repo/`), its tracked files are exported to `workspace/` without `.git`, the sandbox gets only
+  the workspace, and the patch comes from the clean clone's Git directory with the workspace as
+  work tree only, a separate index, hooks and fsmonitor off (E-OUT-8). Whatever the agent wrote,
+  including a `.git` of its own, is content, never configuration.
+- **Credentials**: only the development subscription token of D43, from `-token-file` or
+  `$CLAUDE_CODE_OAUTH_TOKEN`, for the claude agent; the output is checked for it, and nothing is
+  kept if it came back.
+- Checked on the development machine: a scripted task on Firecracker (9.9 s with the template
+  build) and gVisor (0.3 s) gives the same patch; Claude Code (Haiku) on a demo repository, 8
+  turns, 14.8 s, $0.04, and the patch applies with `git apply --check`.
+- Next, for a repository that can be shown and installed elsewhere: an install script per host
+  (the development machine, the board, a VPS), a demo repository with tasks, and the rest of the
+  roadmap's pieces behind the same contract.

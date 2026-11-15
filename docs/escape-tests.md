@@ -85,6 +85,7 @@ and PR text is tested instead.
 | E-OUT-4 | Touches `.git/` or Git config | Rejected |
 | E-OUT-5 | Huge patch | Rejected |
 | E-OUT-6 | Final message with HTML, huge strings, control characters in the title or description | Sanitised or rejected |
+| E-OUT-8 | Workspace back from the agent with a `.git/config` that runs a command (`core.fsmonitor`), a nested `.git` with hooks, a `.gitattributes` asking for a filter (`sandbox task`, D52) | Nothing runs on the host; the patch has the real changes and no `.git`. `cmd/sandbox` unit test (`TestDiffIgnoresAgentGit`) |
 | E-OUT-7 | Workspace tar from a Firecracker guest with `..`, absolute paths, a file written through a symlink it planted, too many bytes or entries (D46) | Sync refused, nothing written outside the workspace. Covered by `internal/guestexec` unit tests |
 
 ## Protocol (E-PROTO), run on the host against the manager's event reader

@@ -39,6 +39,25 @@ also runs other services, which makes isolation from the host and the LAN a hard
 
 Design, threat model, escape tests and roadmap: [docs/](docs/README.md).
 
+## Running a task on its own
+
+`sandbox task` is the core on its own, with no tracker and no forge (D52): a Git repository and a
+task in Markdown go in, a patch comes out.
+
+```bash
+make build
+bin/sandbox task -repo ~/src/project -task task.md -provider firecracker \
+  -token-file secrets/claude-oauth-token
+git -C ~/src/project apply sandbox-*/changes.patch
+```
+
+The agent works on the repository's HEAD in a fresh sandbox (`-provider firecracker` or `gvisor`),
+with the tracked files and no Git metadata, credentials or host access. The output directory holds
+`changes.patch` (binary-safe, against HEAD), `result.json` (status, title, description, question
+or failure, cost, turns), `events.jsonl` and `worker.log`. The exit status is 0 when the agent is
+done, 3 when it asks a question, 1 when it failed. `-setup setup.sh` installs dependencies first;
+`-agent fake` runs without a model, scripted by `FAKE:` lines in the task (`cmd/worker/fake.go`).
+
 ## Running agentd
 
 `agentd` polls Linear for issues labelled `agent` (default model) or `agent-<model>` (`agent-haiku`,

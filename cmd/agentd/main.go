@@ -26,17 +26,11 @@ import (
 	"github.com/matbour/sandbox-agent/internal/runner"
 	"github.com/matbour/sandbox-agent/internal/runnerapi"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
-	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
-	"github.com/matbour/sandbox-agent/internal/sandbox/gvisor"
-	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
+	sandboxproviders "github.com/matbour/sandbox-agent/internal/sandbox/providers"
 )
 
 // providers are the sandbox implementations agentd can use (SANDBOX_PROVIDER).
-var providers = sandbox.Registry{
-	"sbx":         sbx.New,
-	"firecracker": firecracker.New,
-	"gvisor":      gvisor.New,
-}
+var providers = sandboxproviders.Registry
 
 func main() {
 	secrets := flag.String("secrets", defaultSecrets(), "secrets directory (config.env, Linear and GitHub credentials)")
