@@ -72,7 +72,12 @@ sudo apt-get install --no-install-recommends --no-upgrade docker-sbx
 Installed with `--no-install-recommends`; `sbx diagnose` passes (KVM, storage, auth, policy).
 
 Headless secrets: `sbx secret set anthropic` works over SSH with no desktop session and no
-`~/.local/share/keyrings`. Where the secret is stored is still to verify.
+`~/.local/share/keyrings`. The secret is a file, not a keyring entry (checked 2026-11-16):
+`~/.config/com.docker.sandboxes/com.docker.sandboxes/sandboxes/<base64 of
+docker/sandbox/credentials/_/anthropic>/secretpass`, encrypted with `age` (scrypt recipient), next
+to a `metadata.json`. The files are `0664` inside a `0700` parent. `sbx secret` has no command to
+read a secret back (`ls`, `set`, `rm`, `import` only). Where the `age` passphrase comes from is to
+verify.
 
 Processes, all as the development account, none as root:
 
@@ -164,7 +169,7 @@ save that time on every job; to try later.
 
 ## To verify
 
-- Where `sbx secret set` stores the key on a host without a GNOME keyring.
+- Where the `age` passphrase protecting `sbx` secrets comes from.
 - A locked-down global policy that keeps the model API and read-only registry access, and whether
   rules can be restricted by method (the policy table has METHOD and PATH columns).
 - E-NET tests from inside the VM (not only `policy check`), including DNS and raw IP connections.
