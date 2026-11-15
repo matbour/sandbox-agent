@@ -19,7 +19,7 @@ import (
 // template (D49): sequential starts phase by phase, starts at once, and the host memory an idle
 // guest costs. Results go to docs/benchmarks.md.
 //
-//	SANDBOX_BENCH=1 go test ./internal/sandbox/firecracker/ -run StartBench -v
+//	SANDBOX_BENCH=1 go test ./backends/firecracker/ -run StartBench -v
 func TestStartBench(t *testing.T) {
 	if os.Getenv("SANDBOX_BENCH") == "" {
 		t.Skip("set SANDBOX_BENCH=1")

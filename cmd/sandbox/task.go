@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/matbour/sandbox-agent/backends"
 	"github.com/matbour/sandbox-agent/internal/runner"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
-	"github.com/matbour/sandbox-agent/internal/sandbox/providers"
 	"github.com/matbour/sandbox-agent/internal/task"
 )
 
@@ -56,7 +56,7 @@ func runTask(args []string) int {
 	taskFile := fs.String("task", "", "the task, in Markdown")
 	setupFile := fs.String("setup", "", "bash script run in the sandbox before the agent (dependencies)")
 	out := fs.String("out", "", "output directory (default ./sandbox-<time>)")
-	provider := fs.String("provider", "firecracker", "sandbox: "+strings.Join(providers.Registry.Names(), ", "))
+	provider := fs.String("provider", "firecracker", "sandbox: "+strings.Join(backends.Registry.Names(), ", "))
 	agent := fs.String("agent", "claude", "agent backend: claude, or fake (scripted by FAKE: lines in the task)")
 	model := fs.String("model", "", "model for the agent (default: the agent's)")
 	cpus := fs.Int("cpus", 2, "vCPUs")
@@ -143,7 +143,7 @@ func doTask(ctx context.Context, o taskOptions) (Result, string, error) {
 		return res, "", err
 	}
 
-	p, err := providers.Registry.New(o.provider, sandbox.Options{CPUSet: o.cpuset})
+	p, err := backends.Registry.New(o.provider, sandbox.Options{CPUSet: o.cpuset})
 	if err != nil {
 		return res, "", err
 	}

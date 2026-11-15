@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest side of firecracker/run-agent.sh, run as root: start loopback-to-vsock, install the
+# Guest side of backends/firecracker/scripts/run-agent.sh, run as root: start loopback-to-vsock, install the
 # dependencies offline, record a baseline the agent cannot read, run the agent as the `agent`
 # user (agent.sh), then write the diff to out/. Prints "mark <step> <ms since boot>" lines.
 set -u

@@ -1,7 +1,7 @@
 // Package sandboxtest is the conformance suite every sandbox provider must pass. It starts real
 // sandboxes, so providers run it from an integration test gated by an environment variable:
 //
-//	SANDBOX_IT=1 go test ./internal/sandbox/sbx/ -run Conformance -v
+//	SANDBOX_IT=1 go test ./backends/sbx/ -run Conformance -v
 package sandboxtest
 
 import (

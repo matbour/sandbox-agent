@@ -32,7 +32,7 @@ read-only tools disk at `/run/agent/worker` (not `/opt/sandbox-agent/worker`), f
 | `worker` | Inside the sandbox | No | Runs the setup script and the agent CLI, turns the agent's output into events |
 | `escape` | Inside the sandbox | No | The escape tests ([escape-tests.md](../escape-tests.md)) |
 
-Providers (`internal/sandbox/sbx`, `gvisor`, `native`) are not binaries. They are packages compiled
+Providers (`backends/sbx`, `backends/gvisor`, `native`) are not binaries. They are packages compiled
 into `agentd` (into `runnerd` from D42 on) and selected through the registry (D30). `native` runs the `sandbox` binary, `gvisor`
 runs `runsc`, and `sbx` runs `sbx`.
 

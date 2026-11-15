@@ -18,7 +18,7 @@ import (
 // TestConformanceRestored runs the conformance suite on VMs restored from a template (D49): no
 // tap, so every start restores.
 //
-//	SANDBOX_IT=1 go test ./internal/sandbox/firecracker/ -run ConformanceRestored -v
+//	SANDBOX_IT=1 go test ./backends/firecracker/ -run ConformanceRestored -v
 func TestConformanceRestored(t *testing.T) {
 	if os.Getenv("SANDBOX_IT") == "" {
 		t.Skip("starts real microVMs; set SANDBOX_IT=1")
@@ -117,7 +117,7 @@ func TestRestore(t *testing.T) {
 func repoRoot(t *testing.T) string {
 	t.Helper()
 
-	root, err := filepath.Abs("../../..")
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}

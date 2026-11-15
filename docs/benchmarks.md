@@ -83,7 +83,7 @@ Pitfalls met on the way, each of which gave wrong numbers first:
 
 ## Firecracker microVM start (2026-11-20)
 
-`TestStartBench` (`SANDBOX_BENCH=1 go test ./internal/sandbox/firecracker/ -run StartBench -v`)
+`TestStartBench` (`SANDBOX_BENCH=1 go test ./backends/firecracker/ -run StartBench -v`)
 times `Provider.Start` from nothing to a guest agent that answers over vsock: the workspace disk
 (a few files), the firecracker process up to its API socket, the API calls, then the guest (kernel
 boot, the shell init, the guest agent). 1 vCPU, 1 GiB, no network, Firecracker v1.18.0 and its CI

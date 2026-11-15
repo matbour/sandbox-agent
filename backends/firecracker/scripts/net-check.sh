@@ -3,7 +3,7 @@
 # the host bridge, reaches the internet through NAT, and resolves names. The guest side is
 # guest/net-check.sh.
 #
-#   firecracker/net-check.sh [N]    (default 0: fc-tap0, 10.230.0.10)
+#   backends/firecracker/scripts/net-check.sh [N]    (default 0: fc-tap0, 10.230.0.10)
 #
 # Needs the network unit (sudo deploy/network/install.sh) and the amd64 rootfs
 # (scripts/build-rootfs.sh).
@@ -16,7 +16,7 @@ export FC_NET
 
 vm=$(fc_new net-check)
 mkdir -p "$vm/run"
-cp "$fc_root/firecracker/guest/net-check.sh" "$vm/run/"
+cp "$fc_root/backends/firecracker/scripts/guest/net-check.sh" "$vm/run/"
 
 fc_kernel_fetch
 fc_disk "$vm/work.ext4" 16M run="$vm/run"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest side of firecracker/vsock-check.sh: start loopback-to-vsock, then call the egress proxy twice
+# Guest side of backends/firecracker/scripts/vsock-check.sh: start loopback-to-vsock, then call the egress proxy twice
 # from the guest, once on an allowed path and once on a path it must refuse.
 set -u
 w=/tmp/w

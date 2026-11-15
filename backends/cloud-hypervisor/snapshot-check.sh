@@ -3,16 +3,16 @@
 # process and time each step (docs/microvm.md, Option A2). The guest prints a tick every second,
 # so the serial log shows it running on after the restore.
 #
-#   cloud-hypervisor/snapshot-check.sh [copy|copyonwrite|ondemand]
+#   backends/cloud-hypervisor/snapshot-check.sh [copy|copyonwrite|ondemand]
 #
-# Needs the CI kernel and the rootfs in build/<arch>/ (firecracker/lib.sh, scripts/build-rootfs.sh)
+# Needs the CI kernel and the rootfs in build/<arch>/ (backends/firecracker/scripts/lib.sh, scripts/build-rootfs.sh)
 # and the kvm group. ondemand uses userfaultfd, which needs vm.unprivileged_userfaultfd=1 or
 # CAP_SYS_PTRACE. Run directories go to build/cloud-hypervisor/; the API sockets are relative
 # because Unix socket paths are limited to 108 bytes.
 set -u
 
 mode=${1:-copyonwrite}
-root=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$(dirname "$0")/../.." && pwd)
 img=$root/build/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
 dir=$root/build/cloud-hypervisor/snapshot-check
 

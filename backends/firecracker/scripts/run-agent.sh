@@ -3,7 +3,7 @@
 # reached over vsock through loopback-to-vsock and vsock-to-anthropic (docs/microvm.md), the key
 # stays on the host.
 #
-#   firecracker/run-agent.sh <prompt file> [model]
+#   backends/firecracker/scripts/run-agent.sh <prompt file> [model]
 #
 # The work disk holds the input prepared by `bench/install.sh prepare` (the target repository at a
 # fixed commit and a filled Bun cache). In the guest, guest/agent-setup.sh installs the
@@ -26,7 +26,7 @@ input=$fc_root/build/bench/input
 
 vm=$(fc_new agent)
 mkdir -p "$vm/run"
-cp "$fc_root/bin/loopback-to-vsock" "$fc_root/firecracker/guest/agent-setup.sh" "$fc_root/firecracker/guest/agent.sh" "$vm/run/"
+cp "$fc_root/bin/loopback-to-vsock" "$fc_root/backends/firecracker/scripts/guest/agent-setup.sh" "$fc_root/backends/firecracker/scripts/guest/agent.sh" "$vm/run/"
 cp "$prompt" "$vm/run/prompt.md"
 echo "$model" >"$vm/run/model"
 

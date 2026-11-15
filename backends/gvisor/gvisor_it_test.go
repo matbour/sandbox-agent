@@ -14,7 +14,7 @@ import (
 // Needs rootless Podman, runsc with its AppArmor profile (docs/host.md), the agent image
 // (scripts/build-rootfs.sh) and `make build` for the worker.
 //
-//	SANDBOX_IT=1 go test ./internal/sandbox/gvisor/ -run Conformance -v
+//	SANDBOX_IT=1 go test ./backends/gvisor/ -run Conformance -v
 func TestConformance(t *testing.T) {
 	if os.Getenv("SANDBOX_IT") == "" {
 		t.Skip("starts real sandboxes; set SANDBOX_IT=1")
@@ -77,7 +77,7 @@ func TestGuest(t *testing.T) {
 func provider(t *testing.T) *Provider {
 	t.Helper()
 
-	root, err := filepath.Abs("../../..")
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}

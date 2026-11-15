@@ -276,7 +276,7 @@ memory cap stays as a ceiling for build peaks; the real peak is still to be meas
 
 `internal/sandbox` defines `Provider` (`Prepare`, `Start`) and `Sandbox` (`Exec`, `WorkDir`,
 `Close`), plus the optional `CacheTrimmer`. Each technology is a package under it; Docker Sandboxes
-moved to `internal/sandbox/sbx` unchanged. `SANDBOX_PROVIDER` picks one (`sbx` by default); the
+moved to `backends/sbx` unchanged. `SANDBOX_PROVIDER` picks one (`sbx` by default); the
 registry is explicit in `cmd/agentd`. Jobs record the provider in `state.json`.
 
 The contract is written in the package doc and checked by `internal/sandbox/sandboxtest`, a
@@ -684,7 +684,7 @@ Settles M0b's open point on how builds reach the board:
 
 ## D51. gVisor runs as the OCI runtime of rootless Podman (2026-11-22)
 
-The gVisor provider (`internal/sandbox/gvisor`) starts one Podman container per sandbox with
+The gVisor provider (`backends/gvisor`) starts one Podman container per sandbox with
 `--runtime <runsc> --userns=keep-id`, idle (`sleep infinity`), and runs commands with
 `podman exec`:
 
@@ -719,7 +719,7 @@ be shown, installed and used on any machine, and the Linear flow becomes one cli
   (`git diff --binary` against HEAD), `result.json`, `events.jsonl`, `worker.log`. Exit status 0
   done, 3 a question, 1 failed.
 - **The pieces are the existing ones**: `internal/runner` runs the worker in a fresh sandbox from
-  any provider (now listed once, in `internal/sandbox/providers`, for agentd too), and the prompt
+  any provider (now listed once, in `backends`, for agentd too), and the prompt
   frames the task as untrusted data, as agentd's frames an issue. The import boundary test keeps
   `cmd/sandbox` free of Linear, GitHub, Git operations and agentd's configuration.
 - **The patch is taken on the host, with metadata the agent never saw.** The repository is cloned
@@ -736,3 +736,13 @@ be shown, installed and used on any machine, and the Linear flow becomes one cli
 - Next, for a repository that can be shown and installed elsewhere: an install script per host
   (the development machine, the board, a VPS), a demo repository with tasks, and the rest of the
   roadmap's pieces behind the same contract.
+
+## D53. One directory per backend (2026-11-22)
+
+The backends move to `backends/<name>/`: the Go package, the backend's scripts and a README in one
+place (`internal/sandbox/{firecracker,gvisor,sbx}` and the top-level `firecracker/` and
+`cloud-hypervisor/` before). `backends/backends.go` is the registry every command uses, and
+`backends/README.md` compares them. What all backends share stays in `internal/sandbox`: the
+interface and the conformance suite. The import boundary test now covers `backends/...` too, so no
+backend can depend on Linear, GitHub or agentd's configuration. Shell scripts find the repository
+root by looking for `go.mod` rather than by their depth, so they survive the next move.

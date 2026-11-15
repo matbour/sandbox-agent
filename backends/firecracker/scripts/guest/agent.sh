@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest side of firecracker/run-agent.sh, run as the `agent` user: Claude Code on the task in
+# Guest side of backends/firecracker/scripts/run-agent.sh, run as the `agent` user: Claude Code on the task in
 # run/prompt.md. The API is reached through loopback-to-vsock; the key is added on the host.
 export HOME=/tmp/home PATH=/usr/local/bin:/usr/bin:/bin
 export ANTHROPIC_BASE_URL=http://127.0.0.1:8080/anthropic ANTHROPIC_API_KEY=placeholder

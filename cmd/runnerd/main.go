@@ -22,9 +22,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/matbour/sandbox-agent/backends/firecracker"
 	"github.com/matbour/sandbox-agent/internal/runnerapi"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
-	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
 )
 
 func main() {

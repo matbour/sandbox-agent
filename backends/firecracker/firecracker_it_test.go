@@ -13,16 +13,16 @@ import (
 )
 
 // Needs `make build` (bin/guest-agent), the rootfs and kernel in build/<arch>/ (scripts/
-// build-rootfs.sh, firecracker/lib.sh), firecracker on PATH and the kvm group. The network part
+// build-rootfs.sh, backends/firecracker/scripts/lib.sh), firecracker on PATH and the kvm group. The network part
 // uses the host's fc-tap* devices if there are any (deploy/network/).
 //
-//	SANDBOX_IT=1 go test ./internal/sandbox/firecracker/ -run Conformance -v
+//	SANDBOX_IT=1 go test ./backends/firecracker/ -run Conformance -v
 func TestConformance(t *testing.T) {
 	if os.Getenv("SANDBOX_IT") == "" {
 		t.Skip("starts real microVMs; set SANDBOX_IT=1")
 	}
 
-	root, err := filepath.Abs("../../..")
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestGuest(t *testing.T) {
 		t.Skip("starts real microVMs; set SANDBOX_IT=1")
 	}
 
-	root, err := filepath.Abs("../../..")
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@
 # reaches the Anthropic API through loopback-to-vsock (guest) and vsock-to-anthropic (host, adds
 # the key). The guest side is guest/vsock-check.sh.
 #
-#   firecracker/vsock-check.sh [key file]
+#   backends/firecracker/scripts/vsock-check.sh [key file]
 #
 # Without a key file, a placeholder key is used: the API then answers 401 "invalid x-api-key",
 # which still proves the whole path. A path the proxy does not allow must get 403.
@@ -22,7 +22,7 @@ if [ -z "$key" ]; then
 fi
 
 mkdir -p "$vm/run"
-cp "$fc_root/bin/loopback-to-vsock" "$fc_root/firecracker/guest/vsock-check.sh" "$vm/run/"
+cp "$fc_root/bin/loopback-to-vsock" "$fc_root/backends/firecracker/scripts/guest/vsock-check.sh" "$vm/run/"
 
 fc_kernel_fetch
 fc_disk "$vm/work.ext4" 64M run="$vm/run"

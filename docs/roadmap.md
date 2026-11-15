@@ -92,7 +92,7 @@ the next version (N).
 - [ ] R0, Firecracker on the board: boot the CI kernel with vCPUs pinned to cores 4-7 (M1). If it
       does not boot, the board's runner uses `sbx` for the demonstration.
 - [x] R1a, Firecracker provider in Go on the development machine (2026-11-20, D46):
-      `internal/sandbox/firecracker` with its own API client over the Unix socket, a tap per
+      `backends/firecracker` with its own API client over the Unix socket, a tap per
       microVM from a flock'd pool (D44), the workspace disk in and out (`sandbox.Syncer`), the
       guest agent on a cached read-only disk, `cmd/guest-agent` as PID 1 over vsock. Passes the
       conformance suite (network checks skipped on purpose); `agentd` can use it
@@ -139,7 +139,7 @@ the next version (N).
 ## P: sandbox providers (from 2026-11-13)
 
 - [x] `internal/sandbox` interface, sbx moved behind it, conformance suite; sbx passes (D30).
-- [x] gVisor provider (`internal/sandbox/gvisor`, D51, 2026-11-22, development machine): runsc as
+- [x] gVisor provider (`backends/gvisor`, D51, 2026-11-22, development machine): runsc as
       the OCI runtime of rootless Podman, the agent image, the workspace as a bind mount, limits
       through a systemd scope. Passes the conformance suite with the network checks on (the
       model API is reachable, the host's LAN address and cloud metadata are not), starts in
@@ -162,7 +162,7 @@ the next version (N).
 - [ ] Snapshot a booted VM and restore it on both; measure the restore time against a cold boot.
       Done on the development machine (2026-11-22): Firecracker restores in 3 to 7 ms through the
       provider (D49), Cloud Hypervisor in 14 to 17 ms with `copyonwrite`
-      (`cloud-hypervisor/snapshot-check.sh`). Left: the board.
+      (`backends/cloud-hypervisor/snapshot-check.sh`). Left: the board.
 - [ ] Decide layer 2: Firecracker, Cloud Hypervisor or gVisor. Record the result and the errors
       met.
 
@@ -187,7 +187,7 @@ with milestone N.
 
 - [x] `cmd/vsock-to-anthropic` (2026-11-16, D40, D41): Unix socket server, `/anthropic/*` route, key
       injection, exact method and path allowlist, body size limit, request log. Checked from a
-      Firecracker guest over vsock (`firecracker/vsock-check.sh`).
+      Firecracker guest over vsock (`backends/firecracker/scripts/vsock-check.sh`).
 - [ ] Routes for other model providers, model allowlist, per-job budget and cost accounting, rate limit.
 - [x] `cmd/loopback-to-vsock` inside the microVM guest on `127.0.0.1:8080` (2026-11-16). The
       layer 1 sandbox will need its own loopback-to-Unix-socket relay.

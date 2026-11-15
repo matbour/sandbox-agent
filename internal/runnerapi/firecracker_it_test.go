@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matbour/sandbox-agent/backends/firecracker"
 	"github.com/matbour/sandbox-agent/internal/runner"
-	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
 	"github.com/matbour/sandbox-agent/internal/task"
 )
 

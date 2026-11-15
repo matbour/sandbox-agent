@@ -1,5 +1,5 @@
 # Shared steps for running something in a Firecracker microVM (docs/microvm.md). Sourced by the
-# scripts in firecracker/ and bench/; not run on its own.
+# scripts in backends/firecracker/scripts/ and bench/; not run on its own.
 #
 # Every VM has the same shape: the agent rootfs as a read-only root disk, one writable work disk
 # mounted at /tmp/w in the guest, a vsock device whose port 8080 leads to vsock-to-anthropic, and
@@ -10,7 +10,12 @@
 # Run directories live in build/firecracker/<name>/. Unix socket paths are limited to 108 bytes,
 # so keep the repository path and run names short.
 
-fc_root=$(cd "$(dirname "$0")/.." && pwd)
+# The repository's root: the nearest directory above the calling script that holds go.mod.
+fc_root=$(cd "$(dirname "$0")" && pwd)
+while [ ! -f "$fc_root/go.mod" ]; do
+	[ "$fc_root" != / ] || { echo "lib.sh: repository root not found" >&2; exit 1; }
+	fc_root=$(dirname "$fc_root")
+done
 fc_tools=localhost/sandbox-agent-tools
 fc_arch=amd64
 

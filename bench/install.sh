@@ -16,7 +16,7 @@ runs=${RUNS:-5}
 cpus=2
 mem_mib=4096
 
-. "$(dirname "$0")/../firecracker/lib.sh"
+. "$(dirname "$0")/../backends/firecracker/scripts/lib.sh"
 
 root=$fc_root
 bench=$root/build/bench

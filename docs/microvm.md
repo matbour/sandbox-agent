@@ -60,7 +60,7 @@ Guest N uses `fc-tapN` and `10.230.0.(10+N)`, set with `ip=` on the kernel comma
 public resolver in `/etc/resolv.conf`. No filtering: the guest reaches the LAN and the host.
 Installed on the development machine on 2026-11-20.
 
-Verified on 2026-11-20 (development machine, `firecracker/net-check.sh`, with Docker installed on
+Verified on 2026-11-20 (development machine, `backends/firecracker/scripts/net-check.sh`, with Docker installed on
 the host): Firecracker's CI kernel 6.1.155 applies `ip=` (it has `CONFIG_IP_PNP`); the guest
 pings the gateway, resolves `api.anthropic.com` through 1.1.1.1 and gets an HTTPS answer from it,
 on `fc-tap0` and `fc-tap1`. So the `DOCKER-USER` and NAT rules let the traffic through. The
@@ -70,7 +70,7 @@ none, as before.
 
 ### The provider in Go (R1, D46)
 
-`internal/sandbox/firecracker` starts one microVM per sandbox through Firecracker's API socket
+`backends/firecracker` starts one microVM per sandbox through Firecracker's API socket
 (machine config, boot source, three drives, the tap, vsock, start), with
 `taskset -c <CPUs>` when a CPU set is configured. Disks: the agent rootfs read-only (vda), the
 workspace (vdb, an ext4 image made by `mkfs.ext4 -d` from a tar of the host directory), and the
@@ -124,7 +124,7 @@ use it. Unix socket paths are limited to 108 bytes, which rules out deep directo
 
 ### Egress over vsock (verified 2026-11-16, development machine)
 
-`firecracker/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
+`backends/firecracker/scripts/vsock-check.sh` boots the agent rootfs with no network device and a vsock device. In the
 guest, `loopback-to-vsock` listens on `127.0.0.1:8080` (after `ip link set lo up`) and relays each
 connection to vsock port 8080 on the host; there, `vsock-to-anthropic` listens on `<uds_path>_8080`,
 adds the key and forwards to `api.anthropic.com`. With a placeholder key the API answers 401
@@ -133,7 +133,7 @@ proxy. Firecracker's CI kernel 6.1.155 has `virtio_vsock` built in.
 
 ### Claude Code in the VM (first run, 2026-11-16, development machine)
 
-`firecracker/run-agent.sh` ran Claude Code (Sonnet) on a small refactor-and-test task in the target
+`backends/firecracker/scripts/run-agent.sh` ran Claude Code (Sonnet) on a small refactor-and-test task in the target
 repository, inside a VM with 2 vCPUs, 4 GiB, no network device, egress over vsock: 299 s, $0.23, 11
 turns, 10 API calls (all `POST /v1/messages`, none rejected), a correct-looking two-file diff. The
 API took 31 s of the 299. Most of the rest was `tsc` thrashing at the 4 GiB limit until the
@@ -191,7 +191,7 @@ Known pitfall from published experience: virtio-fs devices do not always survive
 the workspace on a block device. Firmware or direct kernel boot on arm64, and the snapshot state on
 arm64: to verify in the spike.
 
-First run (2026-11-22, development machine, v54.1, `cloud-hypervisor/snapshot-check.sh`): the
+First run (2026-11-22, development machine, v54.1, `backends/cloud-hypervisor/snapshot-check.sh`): the
 agent rootfs and Firecracker's CI kernel boot with direct kernel boot (the ELF `vmlinux`), 2 vCPUs,
 1 GiB, no network and no vsock yet:
 

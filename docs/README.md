@@ -25,9 +25,9 @@ to work out, and mark anything not verified as "to verify".
 
 | Directory | What it holds |
 | --- | --- |
-| `cmd/`, `internal/` | Go: `agentd` (manager), `runnerd` (runner, D48), `worker` (in the sandbox, D33), `guest-agent` (PID 1 of a Firecracker guest, D46), `sandbox`, and `vsock-to-anthropic` and `loopback-to-vsock` (shelved, D44), with their packages |
+| `cmd/`, `internal/` | Go, apart from the backends: `agentd` (manager), `runnerd` (runner, D48), `worker` (in the sandbox, D33), `guest-agent` (PID 1 of a Firecracker guest, D46), `sandbox`, and `vsock-to-anthropic` and `loopback-to-vsock` (shelved, D44), with their packages; `internal/sandbox` holds the interface every backend implements and its conformance suite (`sandboxtest`) |
 | `images/` | Dockerfiles of the agent rootfs and the tools container, shared by every runtime ([rootfs.md](rootfs.md)) |
-| `firecracker/` | Everything specific to Firecracker: `lib.sh` (kernel, disks, VM config, proxy, run), the run scripts, and `guest/` for what runs inside the VM ([microvm.md](microvm.md)) |
+| `backends/` | One directory per sandbox backend, with its Go package, its scripts and a README: `firecracker/`, `gvisor/`, `sbx/`, `cloud-hypervisor/` (experiment, no provider yet). `backends.go` lists them for every command ([backends/README.md](../backends/README.md)) |
 | `bench/` | Benchmarks that compare runtimes ([benchmarks.md](benchmarks.md)) |
 | `scripts/` | Repository tooling: rootfs build, commit message checks |
 | `deploy/` | systemd units and examples for the board; `network/`: bridge and NAT for Firecracker guests (D44) |

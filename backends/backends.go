@@ -1,12 +1,12 @@
-// Package providers lists the sandbox implementations, for every command that starts sandboxes
+// Package backends lists the sandbox implementations, for every command that starts sandboxes
 // (agentd, sandbox task). Adding one here makes it available to all of them.
-package providers
+package backends
 
 import (
+	"github.com/matbour/sandbox-agent/backends/firecracker"
+	"github.com/matbour/sandbox-agent/backends/gvisor"
+	"github.com/matbour/sandbox-agent/backends/sbx"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
-	"github.com/matbour/sandbox-agent/internal/sandbox/firecracker"
-	"github.com/matbour/sandbox-agent/internal/sandbox/gvisor"
-	"github.com/matbour/sandbox-agent/internal/sandbox/sbx"
 )
 
 // Registry maps a provider's name (SANDBOX_PROVIDER, -provider) to its factory.

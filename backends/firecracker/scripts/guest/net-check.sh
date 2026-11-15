@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest side of firecracker/net-check.sh. Prints one line per check, prefixed for the host to grep.
+# Guest side of backends/firecracker/scripts/net-check.sh. Prints one line per check, prefixed for the host to grep.
 set -u
 
 ip link set lo up

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/matbour/sandbox-agent/backends"
 	"github.com/matbour/sandbox-agent/internal/config"
 	"github.com/matbour/sandbox-agent/internal/github"
 	"github.com/matbour/sandbox-agent/internal/job"
@@ -26,11 +27,10 @@ import (
 	"github.com/matbour/sandbox-agent/internal/runner"
 	"github.com/matbour/sandbox-agent/internal/runnerapi"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
-	sandboxproviders "github.com/matbour/sandbox-agent/internal/sandbox/providers"
 )
 
 // providers are the sandbox implementations agentd can use (SANDBOX_PROVIDER).
-var providers = sandboxproviders.Registry
+var providers = backends.Registry
 
 func main() {
 	secrets := flag.String("secrets", defaultSecrets(), "secrets directory (config.env, Linear and GitHub credentials)")

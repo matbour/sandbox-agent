@@ -10,7 +10,7 @@
 # build/bench/checks.tsv (date, sandbox, commit, check, run, milliseconds, exit code).
 set -eu
 
-. "$(dirname "$0")/../firecracker/lib.sh"
+. "$(dirname "$0")/../backends/firecracker/scripts/lib.sh"
 
 runs=${RUNS:-3}
 cpus=2
