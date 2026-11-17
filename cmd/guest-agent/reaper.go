@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -86,4 +88,42 @@ func (r *reaper) wait(pid int) unix.WaitStatus {
 	r.mu.Unlock()
 
 	return <-ch
+}
+
+// output runs a short command to completion and returns its combined output: the os/exec
+// equivalent of CombinedOutput, through start and wait so it never races with the reaper.
+func (r *reaper) output(argv0 string, args ...string) ([]byte, error) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	devnull, err := os.Open(os.DevNull)
+	if err != nil {
+		_ = pr.Close()
+		_ = pw.Close()
+
+		return nil, err
+	}
+
+	p, err := r.start(argv0, append([]string{argv0}, args...), &os.ProcAttr{Files: []*os.File{devnull, pw, pw}})
+
+	_ = pw.Close()
+	_ = devnull.Close()
+
+	if err != nil {
+		_ = pr.Close()
+
+		return nil, err
+	}
+
+	out, _ := io.ReadAll(pr)
+	_ = pr.Close()
+
+	ws := r.wait(p.Pid)
+	if !ws.Exited() || ws.ExitStatus() != 0 {
+		return out, fmt.Errorf("%s: wait status %d", argv0, ws)
+	}
+
+	return out, nil
 }

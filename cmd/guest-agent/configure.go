@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"unsafe"
@@ -22,14 +21,14 @@ var configured sync.Once
 
 // configure makes a guest restored from a template its own (D49). The order matters: the clock
 // first, so that nothing after it runs with the template's time.
-func configure(c *guestexec.Configure) guestexec.Result {
+func configure(c *guestexec.Configure, r *reaper) guestexec.Result {
 	if c == nil {
 		return guestexec.Result{Error: "configure: no settings"}
 	}
 
 	err := errors.New("configure: already done")
 
-	configured.Do(func() { err = apply(c) })
+	configured.Do(func() { err = apply(c, r) })
 
 	if err != nil {
 		return guestexec.Result{Error: err.Error()}
@@ -38,7 +37,7 @@ func configure(c *guestexec.Configure) guestexec.Result {
 	return guestexec.Result{}
 }
 
-func apply(c *guestexec.Configure) error {
+func apply(c *guestexec.Configure, r *reaper) error {
 	if c.UnixNano != 0 {
 		tv := unix.NsecToTimeval(c.UnixNano)
 		if err := unix.Settimeofday(&tv); err != nil {
@@ -53,7 +52,7 @@ func apply(c *guestexec.Configure) error {
 	}
 
 	if c.Net != nil {
-		if err := setNetwork(c.Net); err != nil {
+		if err := setNetwork(c.Net, r); err != nil {
 			return fmt.Errorf("network: %w", err)
 		}
 	}
@@ -79,7 +78,7 @@ func apply(c *guestexec.Configure) error {
 
 // setNetwork gives eth0 this guest's MAC and address, with busybox ip from the rootfs. The MAC
 // can only change while the link is down.
-func setNetwork(n *guestexec.Net) error {
+func setNetwork(n *guestexec.Net, r *reaper) error {
 	if _, err := net.ParseMAC(n.MAC); err != nil {
 		return err
 	}
@@ -100,7 +99,7 @@ func setNetwork(n *guestexec.Net) error {
 		{"addr", "add", n.Address, "dev", "eth0"},
 		{"route", "replace", "default", "via", n.Gateway, "dev", "eth0"},
 	} {
-		out, err := exec.Command("/sbin/ip", args...).CombinedOutput()
+		out, err := r.output("/sbin/ip", args...)
 		if err != nil {
 			return fmt.Errorf("ip %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 		}
