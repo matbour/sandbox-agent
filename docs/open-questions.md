@@ -72,3 +72,7 @@ Details and the proposed answers are in [decision/runners.md](decision/runners.m
 - Does `sbx exec` stream stdin and stdout without a TTY?
 - Can the cost be measured outside the sandbox while `sbx` is the provider, or does it stay
   self-reported until the egress proxy (M4)?
+- One failure of the Firecracker integration suite on 2026-11-22, when it ran at the same time as
+  the runner API's (both start microVMs), right after D54: not reproduced in eleven runs since,
+  alone or together, and its log was not kept. To verify: run the suites together in a loop and
+  keep the logs.

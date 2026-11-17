@@ -15,7 +15,7 @@ BINDIR := $(if $(filter $(HOSTARCH),$(GOARCH)),bin,bin/linux-$(GOARCH))
 # CI pins the same version in .github/workflows/ci.yml: change both together.
 GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 
-.PHONY: build cross test lint fmt check hooks generate linear-schema clean
+.PHONY: build cross test lint fmt check hooks generate linear-schema firecracker-api clean
 
 # Every command in cmd/ goes to $(BINDIR)/<name>. Keep bin/sandbox stable: the AppArmor userns
 # profile (M2, docs/host.md) will be attached to its path.
@@ -35,6 +35,16 @@ linear-schema:
 	sha=$$(git ls-remote https://github.com/linear/linear refs/heads/master | cut -f1) && \
 	curl -sfL -o internal/linear/schema.graphql https://raw.githubusercontent.com/linear/linear/$$sha/packages/sdk/src/schema.graphql && \
 	echo $$sha > internal/linear/schema.version
+
+# Pin Firecracker's OpenAPI specification to a release, then regenerate the API types (D54):
+# make firecracker-api VERSION=v1.18.0
+firecracker-api:
+	test -n "$(VERSION)" || { echo "usage: make firecracker-api VERSION=v1.x.y"; exit 2; }
+	sha=$$(git ls-remote https://github.com/firecracker-microvm/firecracker "refs/tags/$(VERSION)^{}" | cut -f1) && \
+	test -n "$$sha" && \
+	curl -sfL -o backends/firecracker/fcapi/firecracker.yaml https://raw.githubusercontent.com/firecracker-microvm/firecracker/$$sha/src/firecracker/swagger/firecracker.yaml && \
+	echo "$(VERSION) $$sha" > backends/firecracker/fcapi/firecracker.version
+	cd backends/firecracker/fcapi && $(GO) generate ./...
 
 test:
 	CGO_ENABLED=0 $(GO) test ./...

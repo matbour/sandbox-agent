@@ -746,3 +746,24 @@ place (`internal/sandbox/{firecracker,gvisor,sbx}` and the top-level `firecracke
 interface and the conformance suite. The import boundary test now covers `backends/...` too, so no
 backend can depend on Linear, GitHub or agentd's configuration. Shell scripts find the repository
 root by looking for `go.mod` rather than by their depth, so they survive the next move.
+
+## D54. Firecracker's API types come from its OpenAPI specification (2026-11-22)
+
+The provider's request bodies are generated from the OpenAPI (Swagger 2.0) specification that
+Firecracker publishes in its repository for each release (`src/firecracker/swagger/firecracker.yaml`),
+pinned in `backends/firecracker/fcapi/` to the installed release (v1.18.0, commit in
+`firecracker.version`). They were handwritten before.
+
+- **Not firecracker-go-sdk**: archived on 2026-11-10 ("no longer maintained", tied to the end of
+  firecracker-containerd, no replacement), last release v1.0.0 in 2022, and its API stops at 1.4.1:
+  it has none of `network_overrides`, `vsock_override` or `clock_realtime`, which the restore
+  path needs (D49).
+- **Not a general generator**: oapi-codegen reads OpenAPI 3 only; after kin-openapi's conversion it
+  panics on this file, and its compatibility mode gives empty structs. The specification uses
+  objects, strings, integers, booleans, arrays, references and enums only, so `fcapi/gen` (one
+  file, gopkg.in/yaml.v3) writes plain structs: optional fields are pointers with `omitempty`,
+  inline enums become named string types with constants.
+- **Kept in step**: `make firecracker-api VERSION=v1.x.y` pins a new release and regenerates; a
+  test fails when `types.go` and the specification differ; `Prepare` warns when the installed
+  firecracker is not the version of the types.
+- The HTTP transport stays a few lines of net/http over the Unix socket.

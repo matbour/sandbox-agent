@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matbour/sandbox-agent/backends/firecracker/fcapi"
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
 
@@ -20,7 +21,7 @@ type vmConfig struct {
 	vcpus, memMiB int
 	kernel        string
 	bootArgs      string
-	drives        []drive
+	drives        []fcapi.Drive
 	tap, mac      string
 	vsock         string
 }

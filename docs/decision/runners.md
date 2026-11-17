@@ -180,7 +180,8 @@ The point of the demonstration, so it is written in Go rather than driven by the
 `firecracker/`:
 
 - a small client for Firecracker's HTTP API over its Unix socket (machine config, boot source,
-  drives, network interface, actions), without `firecracker-go-sdk`;
+  drives, network interface, actions), without `firecracker-go-sdk`; its types are generated
+  from Firecracker's OpenAPI specification since D54;
 - the jailer, with a cgroup and the runner's CPU set per microVM;
 - an OCI image (multi-arch index, pinned by digest) turned into a read-only ext4 root disk for the
   runner's architecture, cached by digest, plus a writable disk per run;

@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/matbour/sandbox-agent/backends/firecracker/fcapi"
 	"github.com/matbour/sandbox-agent/internal/guestexec"
 )
 
@@ -44,11 +45,11 @@ func layout(dir, rootfs, agent string) error {
 
 // drives are the VM's disks, by their names in the run directory. Drives get /dev/vda, vdb, … in
 // the order they are added; the root device is always vda.
-func drives() []drive {
-	return []drive{
-		{DriveID: "rootfs", PathOnHost: rootfsName, IsRootDevice: true, IsReadOnly: true},
-		{DriveID: "workspace", PathOnHost: workspaceName},
-		{DriveID: "agent", PathOnHost: agentName, IsReadOnly: true},
+func drives() []fcapi.Drive {
+	return []fcapi.Drive{
+		{DriveID: "rootfs", PathOnHost: fcapi.Ptr(rootfsName), IsRootDevice: true, IsReadOnly: fcapi.Ptr(true)},
+		{DriveID: "workspace", PathOnHost: fcapi.Ptr(workspaceName), IsReadOnly: fcapi.Ptr(false)},
+		{DriveID: "agent", PathOnHost: fcapi.Ptr(agentName), IsReadOnly: fcapi.Ptr(true)},
 	}
 }
 

@@ -27,7 +27,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/matbour/sandbox-agent/backends/firecracker/fcapi"
 
 	"github.com/matbour/sandbox-agent/internal/sandbox"
 )
@@ -142,6 +145,8 @@ func NewWith(c Config) *Provider { return &Provider{c: c} }
 // Provider starts Firecracker microVMs.
 type Provider struct {
 	c Config
+
+	versionChecked sync.Once
 }
 
 // Name returns "firecracker".
@@ -162,6 +167,8 @@ func (p *Provider) Prepare(context.Context) error {
 	if _, err := lookPath(p.c.Firecracker); err != nil {
 		return fmt.Errorf("firecracker binary: %w", err)
 	}
+
+	p.versionChecked.Do(p.checkVersion)
 
 	for _, f := range []string{p.c.Kernel, p.c.Rootfs, p.c.GuestAgent} {
 		if _, err := os.Stat(f); err != nil {
@@ -185,3 +192,26 @@ func (p *Provider) Prepare(context.Context) error {
 
 // lookPath finds the firecracker binary, by path or on PATH.
 func lookPath(name string) (string, error) { return exec.LookPath(name) }
+
+// checkVersion warns when the installed firecracker is not the release the API types come from
+// (fcapi.Version): a field may have changed between them. Firecracker prints "Firecracker v1.18.0".
+func (p *Provider) checkVersion() {
+	out, err := exec.Command(p.c.Firecracker, "--version").Output()
+	if err != nil {
+		p.c.Log.Warn("firecracker --version", "err", err)
+
+		return
+	}
+
+	fields := strings.Fields(string(out))
+	if len(fields) < 2 || strings.TrimPrefix(fields[1], "v") != fcapi.Version {
+		p.c.Log.Warn("firecracker is not the version of the API types: update backends/firecracker/fcapi (make firecracker-api)",
+			"installed", strings.TrimSpace(firstLine(string(out))), "api", fcapi.Version)
+	}
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+
+	return line
+}
