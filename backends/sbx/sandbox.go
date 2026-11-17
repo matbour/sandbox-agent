@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/matbour/sandbox-agent/internal/sandbox"
@@ -126,22 +125,4 @@ func (s *Sandbox) RemoveHard(cpus string) error {
 	}
 
 	return s.Remove()
-}
-
-func run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "sbx", args...)
-	if stdin != nil {
-		cmd.Stdin = bytes.NewReader(stdin)
-	}
-
-	return cmd.CombinedOutput()
-}
-
-func tail(b []byte) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > 600 {
-		s = "…" + s[len(s)-600:]
-	}
-
-	return s
 }
