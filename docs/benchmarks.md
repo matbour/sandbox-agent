@@ -138,9 +138,62 @@ memory). In a first experiment without `OpConfigure`, a restore reached a guest 
 in 12 to 17 ms: most of the 31 ms of the restored guest phase is `OpConfigure` (mounting the
 workspace, reseeding the random pool), not measured part by part yet.
 
+## Sandbox start up to the agent, per provider (2026-11-23)
+
+`sandbox bench` measures, through the `sandbox.Provider` interface every backend implements, the
+time from nothing to an agent that answers: `Provider.Start`, then `claude --version` in the
+sandbox (it loads the 300 MB Claude Code binary), then `Close`, which is timed apart.
+
+```sh
+make build
+bin/sandbox bench -providers firecracker,firecracker-cold,gvisor,sbx -sizes 1:512m,1:1g,2:2g -n 10
+```
+
+- **first**: the first start of a fresh provider. Firecracker gets an empty state directory, so
+  its first start builds the tools disk and the template of that machine size (D49). The host's
+  page cache and Podman's image store are not emptied (that needs root): "first" is a new
+  provider on a host that already ran one, not a host just booted. The very first gVisor start of
+  the day was 408 ms against 156 ms afterwards.
+- **warm**: the next `-n` starts, one after the other.
+- `firecracker-cold` boots every VM (`NoSnapshots`) instead of restoring the template.
+- `-cpuset` pins the sandboxes; `sbx` requires it.
+- Each sample is appended to `build/bench/start.tsv` (date, provider, commit, vCPUs, memory,
+  first or warm, run, start, agent, close, in milliseconds).
+
+Development machine (8-core x86-64, 16 threads), not pinned, with the network on (a tap for
+Firecracker, pasta for gVisor). Firecracker v1.18.0, kernel 6.1.155; runsc release-20261109.0
+through Podman 5.7.0. 10 warm starts per row:
+
+| Provider | Size | First ready | Warm ready, p50 | p90 | Start, p50 | Agent, p50 | Close, p50 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Firecracker, restored | 1 vCPU, 512 MiB | 616 ms | 129 ms | 132 ms | 66 ms | 62 ms | 26 ms |
+| Firecracker, restored | 1 vCPU, 1 GiB | 867 ms | 126 ms | 130 ms | 62 ms | 63 ms | 23 ms |
+| Firecracker, restored | 2 vCPUs, 2 GiB | 1398 ms | 132 ms | 138 ms | 71 ms | 61 ms | 29 ms |
+| Firecracker, cold boot | 1 vCPU, 512 MiB | 244 ms | 222 ms | 226 ms | 168 ms | 55 ms | 28 ms |
+| Firecracker, cold boot | 1 vCPU, 1 GiB | 247 ms | 229 ms | 233 ms | 174 ms | 54 ms | 28 ms |
+| Firecracker, cold boot | 2 vCPUs, 2 GiB | 242 ms | 232 ms | 236 ms | 177 ms | 53 ms | 31 ms |
+| gVisor | 1 vCPU, 512 MiB | 156 ms | 163 ms | 178 ms | 91 ms | 71 ms | 123 ms |
+| gVisor | 1 vCPU, 1 GiB | 156 ms | 163 ms | 173 ms | 90 ms | 75 ms | 122 ms |
+| gVisor | 2 vCPUs, 2 GiB | 156 ms | 165 ms | 169 ms | 88 ms | 75 ms | 127 ms |
+
+- A restored Firecracker VM is the fastest to an agent that answers (about 130 ms), then gVisor
+  (about 165 ms), then a cold boot (about 230 ms). Size barely matters once warm.
+- The first restored start pays for the template, which grows with the memory written to the
+  snapshot (0.6 to 1.4 s); a cold boot has nothing to build.
+- The agent's first answer costs 55 to 75 ms everywhere: loading Claude Code is as large as the
+  restored start itself; the template guest probably never read it (to verify).
+  To try: run `claude --version` in the template guest before the snapshot.
+- Restored starts are slower here than in `TestStartBench` (62 ms against 50 ms): this run has a
+  tap per VM, that one had no network. To verify part by part.
+- Closing gVisor (`podman rm`) takes 120 ms, off the critical path of a job but not of a busy
+  host.
+- Docker Sandboxes (`sbx`) is not installed on the development machine: to run on the board,
+  with the rest of this table there (`-cpuset 4-7`).
+
 ## To do
 
-- gVisor and Docker Sandboxes on the same input.
+- gVisor and Docker Sandboxes on the same input (the install and checks benchmarks).
+- `sandbox bench` on the board, with `sbx`.
 - The same on the board (arm64), once Firecracker runs there.
 - Firecracker with our own kernel, and with the workspace on virtio-fs or a tmpfs instead of a disk.
 - Boot time and memory use next to the install time.
