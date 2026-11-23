@@ -87,6 +87,7 @@ and PR text is tested instead.
 | E-OUT-6 | Final message with HTML, huge strings, control characters in the title or description | Sanitised or rejected |
 | E-OUT-8 | Workspace back from the agent with a `.git/config` that runs a command (`core.fsmonitor`), a nested `.git` with hooks, a `.gitattributes` asking for a filter (`sandbox task`, D52) | Nothing runs on the host; the patch has the real changes and no `.git`. `cmd/sandbox` unit test (`TestDiffIgnoresAgentGit`) |
 | E-OUT-7 | Workspace tar from a Firecracker guest with `..`, absolute paths, a file written through a symlink it planted, too many bytes or entries (D46) | Sync refused, nothing written outside the workspace. Covered by `internal/guestexec` unit tests |
+| E-OUT-9 | Upper layer back from a Firecracker guest (D55) with a `.wh.` entry naming `..`, an absolute path or a path through a symlink, a `.wh..wh..opq` in a directory outside the workspace, a whiteout for an excluded path | Nothing deleted or written outside the workspace, excluded paths left alone. To write with the layer mode of `guestexec.Mirror` |
 
 ## Protocol (E-PROTO), run on the host against the manager's event reader
 

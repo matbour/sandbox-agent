@@ -103,6 +103,10 @@ the next version (N).
       the VMM from M3 (D47).
 - [ ] R1c: an OCI image (multi-arch, by digest) turned into a cached ext4 root disk per
       architecture in Go, instead of `scripts/build-rootfs.sh`.
+- [ ] R1d, workspace as an overlay (D55): read-only code layer per commit, writable upper per job,
+      only the upper back over vsock with OCI-style whiteouts; then a dependencies layer per
+      lockfile, built by a setup VM, so jobs skip the install. Plan in
+      [microvm.md](microvm.md#workspace-as-an-overlay-d55).
 - [x] R2, worker (2026-11-20): stdin and streamed events over the guest agent (D46), the dev token
       in the guest's environment (D43), and a `fake` agent backend. See milestone W for the rest.
 - [ ] R3, manager core: sessions made of durable steps, `Tracker` and `Forge` interfaces, inbox and

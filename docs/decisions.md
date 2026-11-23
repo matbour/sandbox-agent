@@ -767,3 +767,40 @@ pinned in `backends/firecracker/fcapi/` to the installed release (v1.18.0, commi
   test fails when `types.go` and the specification differ; `Prepare` warns when the installed
   firecracker is not the version of the types.
 - The HTTP transport stays a few lines of net/http over the Unix socket.
+
+## D55. Firecracker's workspace becomes an overlay of read-only layers; only the upper comes back (2026-11-23)
+
+Decided, not built yet: plan and open points in [microvm.md](microvm.md#workspace-as-an-overlay-d55).
+Supersedes the workspace part of D46 for Firecracker: today the whole repository goes in as one
+writable ext4 image built per job, and the whole `/workspace` (minus the exclude list) comes back
+as a tar stream.
+
+- **Layers.** The guest mounts an overlay on `/workspace`, built inside the guest kernel: no change
+  to the VMM, which still only sees block devices. Read-only lower layers: the code (the exported
+  HEAD, an ext4 image cached per commit) and the dependencies (below). Writable upper: an empty
+  ext4 image per job, holding `data/` and `work/`, mounted where the agent user cannot reach it.
+  The overlay is mounted by `OpConfigure`, after a restore, as the workspace is today (D49).
+- **Only the upper comes back.** The guest agent sends `upper/data` as a tar stream over vsock,
+  with overlayfs's markers written the way OCI image layers do: a whiteout (character device 0/0)
+  becomes an empty `.wh.<name>`, an opaque directory (`trusted.overlay.opaque`) a `.wh..wh..opq`.
+  The host applies it as a layer: write what came, delete what is marked, and no longer prune what
+  is absent (absent now means unchanged). Same guards as D46 (`openat2`, size and entry limits),
+  same exclude list. The patch is still taken on the host against the clean clone (D52).
+- **Not read on the host.** The upper image is never mounted or parsed on the host: that would
+  take root, and put a file system the guest could forge in front of the host kernel (or of
+  `debugfs`, not built for hostile input).
+- **Dependencies as a layer.** A setup VM boots with the code layer and an empty upper, runs the
+  setup script, deletes the package managers' caches, and stops; its upper image becomes the
+  dependencies layer, kept on the host as a file, keyed by the lockfiles, the setup script, the
+  rootfs and the architecture. Jobs stack it between the code and their upper
+  (`lowerdir=deps:code`) and skip the install while the lockfiles do not change. A job that changes
+  a dependency runs the install itself, into its upper. The layer is written by a dedicated VM
+  only, read only by guests: the trust is that of the dependencies themselves, as today.
+- **Why**: less data both ways (the code layer is built once per commit instead of a `mkfs` per
+  job, and the return is the agent's changes instead of the repository), and the install leaves
+  the start of every job (about 2 minutes for the target monorepo's `bun install`). The same
+  pattern as container image layers and CI caches keyed by lockfile.
+- **Rejected**: a `git diff` taken in the guest (it needs a `.git` in the guest, and moves the
+  hostile parsing to `git apply`); virtio-fs (Firecracker has none, and it does not always
+  survive a restore).
+- **Order**: the overlay with the install still in the job first, then the dependencies layer.

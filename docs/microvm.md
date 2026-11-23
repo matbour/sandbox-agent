@@ -178,6 +178,49 @@ Found on the way:
   an interface) and `clock_realtime` (x86 only), and maps the memory file private or serves it
   through userfaultfd (`Uffd`).
 
+### Workspace as an overlay (D55)
+
+Decided on 2026-11-23, not built yet. Today the workspace is one writable ext4 image per job
+(`workspaceDisk`) and the whole `/workspace` comes back in `SyncWorkspace`. The target:
+
+| Drive | Access | Content |
+| --- | --- | --- |
+| `vda` rootfs | read-only | unchanged |
+| `vdb` code | read-only | the exported HEAD, cached per commit |
+| `vdc` agent | read-only | unchanged |
+| `vdd` deps | read-only | `node_modules` and the like, cached per lockfile (step 2) |
+| `vde` upper | read-write | empty per job: `data/` and `work/` |
+
+In the guest, `OpConfigure` mounts the code layer on `/run/lower/code`, the dependencies on
+`/run/lower/deps`, the upper on `/run/upper` (mode 0700, root), then
+`mount -t overlay overlay -o lowerdir=/run/lower/deps:/run/lower/code,upperdir=/run/upper/data,workdir=/run/upper/work /workspace`.
+
+Steps:
+
+1. **Overlay, install still in the job.** Code layer and upper disks (`disk.go`), the extra drives
+   in `drives()` and in the template (`snapshot.go`), the mounts in `cmd/guest-agent`, an `OpTar`
+   that reads `upper/data` and writes whiteouts and opaque directories as `.wh.` entries, and a
+   layer mode for `guestexec.Mirror` (apply and delete, no prune). The setup script writes
+   `node_modules` into the upper, which the exclude list keeps from coming back.
+2. **Dependencies layer.** A setup VM (code layer, empty upper) runs the setup script, removes
+   `.bun/` and `.cache/`, stops; its upper image is cached under a key made of the lockfiles, the
+   setup script, the rootfs and the architecture, with the N most recent kept. Jobs skip the setup
+   script when the layer exists. The setup notes tell the agent not to run the install again
+   unless it changes a dependency: a reinstall rewrites `node_modules`, and every file touched is
+   copied up into the upper.
+
+Open points:
+
+- Every disk keeps a fixed size (sparse images with a ceiling): a restored guest keeps the sizes
+  it saw in the template. To verify for read-only drives backed by a smaller file.
+- Overlayfs in the guest kernel: built into the amd64 CI kernel (`build/amd64/vmlinux`, verified
+  2026-11-23); arm64 kernel to verify.
+- An upper image used as a lower layer keeps its whiteouts and opaque directories, which
+  overlayfs honours in lower layers too (as Docker's overlay2 does): to verify with a setup script
+  that deletes files.
+- Measure first on the target monorepo: `SyncWorkspace` and `workspaceDisk` today, against the
+  upper's size and the layers' build time.
+
 ## Option A2: Cloud Hypervisor
 
 Cloud Hypervisor is a Rust VMM on KVM from the same rust-vmm family as Firecracker, with a wider
