@@ -661,6 +661,8 @@ remain for `NoSnapshots`, and as a fallback when a template cannot be built.
 
 ## D50. The board pulls the binaries CI built (2026-11-22)
 
+Where CI publishes changed with D56: a pre-release instead of the `builds` branch. The rest stands.
+
 Settles M0b's open point on how builds reach the board:
 
 - **CI publishes.** When CI passes on a push to main, `.github/workflows/deploy.yml` builds both
@@ -804,3 +806,26 @@ as a tar stream.
   hostile parsing to `git apply`); virtio-fs (Firecracker has none, and it does not always
   survive a restore).
 - **Order**: the overlay with the install still in the job first, then the dependencies layer.
+
+## D56. The board pulls the binaries from a rolling pre-release (2026-11-26)
+
+Replaces the `builds` branch of D50, now that the repository is public. The reason for the branch
+was that a release asset of a private repository needs an API token on the board; a public one
+needs nothing.
+
+- **CI publishes** the `edge` pre-release (`scripts/publish-release.sh`): on every push to main
+  that passed CI, the release and its tag are deleted, then created again on the source commit,
+  with flat assets `<binary>-linux-<arch>`, `SHA256SUMS` and `COMMIT`. Only the last build is kept,
+  and recreating the release leaves no asset of an older build behind. It is marked pre-release
+  and not latest: versioned releases can come later, when there are versions worth naming.
+- **The board pulls** with `curl` (`deploy/update/update.sh`), every minute as before: download
+  `COMMIT`, stop if it is installed, else download this architecture's binaries and `SHA256SUMS`,
+  check, install, fast-forward the checkout, restart. The repository comes from the checkout's
+  `origin` URL.
+- **Gained**: no credential on the board for the binaries, no 30 MB of binaries in Git, and the
+  binaries are where people look for them. The checkout's fast-forward uses `origin` as before;
+  with an HTTPS remote it also needs no credential, so the deploy key can go.
+- **Cost**: recreating the release is not atomic. For a few seconds the assets are missing or mixed
+  between two builds; a run in that window fails on a download or a checksum and the next one
+  installs the build.
+

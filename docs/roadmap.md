@@ -24,6 +24,8 @@ them (M1 to M8). The target workspace and repository are in the private notes.
 - [x] Decide how builds reach the board (D50, 2026-11-22): CI publishes the binaries of every
       commit of main that passed to the `builds` branch, and a user timer on the board pulls,
       checks and installs them, then restarts the service (`deploy/update/`).
+- [x] Publish to the `edge` pre-release instead of the `builds` branch, once the repository is public
+      (D56, 2026-11-26).
 
 ## S1: Docker Sandboxes on the board
 

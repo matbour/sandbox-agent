@@ -1,9 +1,9 @@
-# Publish the binaries of every commit of main that passed CI, for the board to pull (D50).
+# Publish the binaries of every commit of main that passed CI, for the board to pull (D50, D56).
 #
-# The binaries of both architectures go to the `builds` branch as one orphan commit, force-pushed
-# each time, with SHA256SUMS and the source commit in COMMIT. The board fetches that branch with
-# the read-only deploy key it already uses for its checkout, so no secret that reaches the board
-# lives in GitHub, and nothing connects to the board (deploy/update/update.sh).
+# The binaries of both architectures become the assets of the `edge` pre-release, recreated each
+# time on the source commit, with SHA256SUMS and the source commit in COMMIT. The repository is
+# public, so the board downloads them with no credential, and nothing connects to the board
+# (deploy/update/update.sh).
 name: Deploy
 
 on:
@@ -30,14 +30,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          persist-credentials: true
+          persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Build (linux/amd64 and linux/arm64)
         run: make cross
-      - name: Publish to the builds branch
+      - name: Publish the edge pre-release
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
-        run: scripts/publish-builds.sh "$SHA"
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: scripts/publish-release.sh "$SHA"

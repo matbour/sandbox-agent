@@ -1,5 +1,5 @@
-# User unit: ~/.config/systemd/user/sandbox-agent-update.timer (D50). Checks for new binaries every
-# minute; an update is a git fetch of one small branch when nothing changed.
+# User unit: ~/.config/systemd/user/sandbox-agent-update.timer (D50, D56). Checks for new binaries
+# every minute; when nothing changed, a check is one download of a 41-byte file.
 [Unit]
 Description=sandbox-agent: check for new binaries every minute
 

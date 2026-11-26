@@ -61,7 +61,8 @@ target. Details of both are in the private notes.
   tests.
 - Work directly on `main` for now: no feature branches. Commit each logical change on `main`.
 - The board keeps its own checkout in `~/sandbox-agent`. It installs the binaries CI publishes to
-  the `builds` branch by itself, every minute (D50, `deploy/update/`): push to main, wait for CI.
+  the `edge` pre-release by itself, every minute (D50, D56, `deploy/update/`): push to main, wait
+  for CI.
 
 ## Rules
 

@@ -1,4 +1,4 @@
-# User unit: ~/.config/systemd/user/sandbox-agent-update.service, started by the timer (D50).
+# User unit: ~/.config/systemd/user/sandbox-agent-update.service, started by the timer (D50, D56).
 #   systemctl --user daemon-reload && systemctl --user enable --now sandbox-agent-update.timer
 [Unit]
 Description=sandbox-agent: install the latest published binaries
