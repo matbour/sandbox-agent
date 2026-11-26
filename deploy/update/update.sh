@@ -25,8 +25,9 @@ force=${1:-}
 mkdir -p "$state"
 cd "$root"
 
-# git@github.com:owner/name.git or https://github.com/owner/name(.git)
-repo=${SANDBOX_AGENT_REPO:-$(git remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')}
+# https://github.com/owner/name(.git), ssh://git@github.com/owner/name.git, or git@<host>:owner/name.git
+# where <host> may be an alias of ~/.ssh/config (a deploy key).
+repo=${SANDBOX_AGENT_REPO:-$(git remote get-url origin | sed -E 's#^.*github\.com/##; s#^[^/]*:##; s#\.git$##')}
 base=https://github.com/$repo/releases/download/edge
 
 fetch() {
